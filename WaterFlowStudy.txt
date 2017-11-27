@@ -143,27 +143,30 @@ class FacadeMesh(object):
         startPt = ray.Position
         l = []
         for i in range(self.length):
-            num = s.MeshRay(self.obj[0], ray)
+            num = s.MeshRay(self.obj[i], ray)
             if num > 0:
                 pt = ray.PointAt(num)
-                l.append([ray.PointAt(num), startPt.DistanceTo(pt), i])
+                l.append([ray.PointAt(num), i])
         if not l:   #   if the list is empty, return nothing
             return([])
         else:   #   return the closeset point and the index of the mesh it is on
-            temp = [l[i][1] for i in range(len(l))]
-            index = temp.index(min(temp))
-            return [l[index][0], l[index][2]]
+            tempDist = [startPt.DistanceTo(l[i][0]) for i in range(len(l))]
+            index = tempDist.index(min(tempDist))
+            return l[index]
 
 
 
 def main(startPoint, facadeMesh, windVect, stepSize, maxSteps, endPlane):
     init = start(facadeMesh, startPoint, windVect)
-    if not init:
-        return []
-    startPoint = init[0]
-    ind = init[1]
-    drop = RainDrop(startPoint, ind, facadeMesh, windVect, stepSize, maxSteps, endPlane)
+    if not init:    # the rainLine does not touch the facade
+        return [], [], []
+    startPointDrop = init[0]    # impact point
+    ind = init[1]   # index of the mesh the water is on
+    print init
+    # creation of the RainDrop OBJECT
+    drop = RainDrop(startPointDrop, ind, facadeMesh, windVect, stepSize, maxSteps, endPlane)
     i = 0
+    # beginning of the loop to draw the water path
     while drop.state != 'finished' and i < drop.maxsteps:
         i += 1
         if i > 4:
@@ -181,7 +184,7 @@ def main(startPoint, facadeMesh, windVect, stepSize, maxSteps, endPlane):
     curves = []
     for cu in drop.waterPath:
         curves.append(cu)
-    return curves
+    return curves, startPointDrop, g.Line(startPoint, startPointDrop)
 
 
 def start(facadeMesh, point, windVect):
@@ -189,10 +192,14 @@ def start(facadeMesh, point, windVect):
     return facadeMesh.MeshRay(ray)
 
 fCrvs = []
+impactPoints = []
+rainLines = []
 
 facadeMesh = FacadeMesh(facadeMesh, mat)
 for pt in startPoint:
-    temp = main(pt, facadeMesh, windVect, stepSize, maxSteps, endPlane)
+    temp, imPt, rLines = main(pt, facadeMesh, windVect, stepSize, maxSteps, endPlane)
     if len(temp) != 0:
         for cu in temp:
             fCrvs.append(cu)
+        impactPoints.append(imPt)
+        rainLines.append(rLines)
