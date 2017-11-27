@@ -7,17 +7,17 @@ import Rhino.Geometry.Collections as c
 import Rhino.Geometry.Intersect.Intersection as s
     
 class RainDrop(object):
-    def __init__(self, point3d, mesh, windvect, angletol, angledrop, stepsize, maxsteps, plane):
-        self.start = point3d
-        self.pos = self.start   # position of the flow
-        self.mpos = mesh.ClosestMeshPoint(self.pos, 0.)   # mesh position of the flow
-        self.mesh = mesh    # surface mesh of the facade
+    def __init__(self, point3d, ind, facadeMesh, windvect, stepsize, maxsteps, plane):
+        self.pos = point3d   # position of the flow
+        self.ind = ind
+        self.mesh = facadeMesh  # surface mesh of the facade
+        self.mpos = self.mesh.ClosestMeshPoint(self.pos, self.ind)   # mesh position of the flow
         self.wind = windvect
-        self.antol = math.pi/180*angletol   # tolerance angle
-        self.androp = math.pi/180*angledrop # drop angle
+        self.antol = self.mesh.mat[self.ind][0]   # tolerance angle
+        self.androp = self.mesh.mat[self.ind][1] # drop angle
         self.stepsize = stepsize    # interval of steps on the mesh
-        self.points = [self.start]  # flow points history
-        self.curveTemp = [self.start]  # stock a journey on a srf, then back to 0 when changes
+        self.points = [self.pos]  # flow points history
+        self.curveTemp = [self.pos]  # stock a journey on a srf, then back to 0 when changes
         self.waterPath = [] # gets the different curves of a water path
         self.state = 'on'   # if the flow is on or off the facade or finished
         self.maxsteps = maxsteps    # max numbers of iterations
@@ -65,6 +65,7 @@ class RainDrop(object):
         # separates the curves after a 'srf to srf' journey
         self.waterPath.append(g.PolylineCurve(self.curveTemp))
         self.curveTemp = []
+        print len(self.waterPath)
 
     def updatePos(self, newPoint):
         #   change flow position to the new point
@@ -102,38 +103,91 @@ class RainDrop(object):
             self.state = 'off'  # the waterflow is off the facade
 
 
+class FacadeMesh(object):   #   list of mesh, to be used like a single mesh
+    def __init__(self, mesh, mat):
+        self.length = len(matMesh)
+        self.obj = [mesh[i] for i in range(self.length)]
+        self.mat = [mat[i] for i in range(self.length)]
+        
+    #   return the index of the mesh in the list
+    def ind(self, mesh):
+        return self.obj.index(mesh)
+        
+    #   rewriting this methods to use them on facadeMesh as if it was a simple mesh
+    def ClosestPoint(self, point):
+        index = 0
+        pt = self.obj[0].ClosestPoint(point)
+        d = point.DistanceTo(pt)
+        for i in range(self.length):
+            ptTemp = self.obj[i].ClosestPoint(point)
+            dd = point.DistanceTo(ptTemp)
+            if dd < d:
+                index = i
+                d = dd
+                pt = ptTemp
+         return(pt, i)  #   return both the point and the index of the mesh it is on
+         
+     def ClosestMeshPoint(self, point, ind):
+         return self.obj[ind].ClosestMeshPoint(point, 0.)
+         
+     def NormalAt(self, mPoint, ind):
+         return self.obj[ind].NormalAt(mPoint)
+         
+     def MeshRay(self, ray):
+         startPt = ray.Position
+         l = []
+         for i in range(self.length):
+            num = self.obj[0].MeshRay(ray)
+            if num > 0:
+                temp = []
+                pt = ray.PointAt(num)
+                temp.append([ray.PointAt(num), startPt.DistanceTo(pt), i])
+                l.apend(temp)
+        if not l:   #   if the list is empty, return nothing
+            return([])
+        else:   #   return the closeset point and the index of the mesh it is on
+            temp = [l[i][1] for i in range(len(l))]
+            index = temp.index(min(temp))
+            return [l[index][0], l[index][2]]
 
-def main(self):
+
+
+def main(startPoint, facadeMesh, windVect, stepSize, maxSteps, endPlane):
+    init = start(facadeMesh, point, windVect)
+    if not init:
+        return
+    startPoint = init[0]
+    ind = init[1]
+    drop = RainDrop(startPoint, ind, facadeMesh, windvect, stepsize, maxsteps, plane)
     i = 0
-    while self.state != 'finished' and i < self.maxsteps:
+    while drop.state != 'finished' and i < drop.maxsteps:
         i += 1
-        if i > 6:
-            self.check = True
-        if self.check == True:
+        if i > 4:
+            drop.check = True
+        if drop.check == True:
             # check both (not to define twice same objects)
-            self.toldrop()
-        if self.state == 'on':  # if the waterflow is on the facade
-            self.nextStep()
+            drop.toldrop()
+        if drop.state == 'on':  # if the waterflow is on the facade
+            drop.nextStep()
         else: # if the waterflow is off the facade (did not used if self.check == 'off' to gain a test)
-            self.check = False  # stop checking until it reaches the facade again
-            self.nextSurf()
+            drop.check = False  # stop checking until it reaches the facade again
+            drop.nextSurf()
             i = 0   # re initialisation of the count to be sure that it is not overtaken
     # creation of the curves
     curves = []
-    for cu in self.waterPath:
+    for cu in drop.waterPath:
+        #cu = g.PolylineCurve(cu)
+        #cu.Simplify(0, 0.1 * self.stepsize, 3.14)
         curves.append(cu)
-    return curves, self.points
-
-def closest(pt, listPt):
-    d = pt.DistanceTo(listPt[0])
-    ind = 0
-    for i in range(1, len(listPt)):
-        dd = pt.DistanceTo(listPt[i])
-        if dd < d:
-            d = dd
-            ind = i
-    return(ind)
+        print rs.CurveLength(cu)
+    return curves
 
 
-b = RainDrop(startPoint, facadeMesh, windVect, angleTol, angleDrop, stepSize, maxSteps, endPlane)
-a, points = main(b)
+def start(facadeMesh, point, windVect):
+    ray = g.Ray3d(point, windVect)
+    return facadeMesh.mesh.MeshRay(ray)
+
+
+facadeMesh = FacadeMesh(mesh, mat)
+for pt in startPoint:
+    a.append(main(pt, facadeMesh, windVect, stepSize, maxSteps, endPlane))
