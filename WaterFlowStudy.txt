@@ -105,7 +105,7 @@ class RainDrop(object):
 
 class FacadeMesh(object):   #   list of mesh, to be used like a single mesh
     def __init__(self, mesh, mat):
-        self.length = len(matMesh)
+        self.length = len(mesh)
         self.obj = [mesh[i] for i in range(self.length)]
         self.mat = [mat[i] for i in range(self.length)]
         
@@ -125,24 +125,21 @@ class FacadeMesh(object):   #   list of mesh, to be used like a single mesh
                 index = i
                 d = dd
                 pt = ptTemp
-         return(pt, i)  #   return both the point and the index of the mesh it is on
+        return pt, i  #   return both the point and the index of the mesh it is on
          
-     def ClosestMeshPoint(self, point, ind):
-         return self.obj[ind].ClosestMeshPoint(point, 0.)
+    def ClosestMeshPoint(self, point, ind):
+        return self.obj[ind].ClosestMeshPoint(point, 0.)
          
-     def NormalAt(self, mPoint, ind):
-         return self.obj[ind].NormalAt(mPoint)
-         
-     def MeshRay(self, ray):
-         startPt = ray.Position
-         l = []
-         for i in range(self.length):
-            num = self.obj[0].MeshRay(ray)
+    def NormalAt(self, mPoint, ind):
+        return self.obj[ind].NormalAt(mPoint)
+        
+    def MeshRay(self, ray):
+        startPt = ray.Position
+        for i in range(self.length):
+            num = s.MeshRay(self.obj[0], ray)
             if num > 0:
-                temp = []
                 pt = ray.PointAt(num)
-                temp.append([ray.PointAt(num), startPt.DistanceTo(pt), i])
-                l.apend(temp)
+                l.append([ray.PointAt(num), startPt.DistanceTo(pt), i])
         if not l:   #   if the list is empty, return nothing
             return([])
         else:   #   return the closeset point and the index of the mesh it is on
@@ -153,12 +150,12 @@ class FacadeMesh(object):   #   list of mesh, to be used like a single mesh
 
 
 def main(startPoint, facadeMesh, windVect, stepSize, maxSteps, endPlane):
-    init = start(facadeMesh, point, windVect)
+    init = start(facadeMesh, startPoint, windVect)
     if not init:
         return
     startPoint = init[0]
     ind = init[1]
-    drop = RainDrop(startPoint, ind, facadeMesh, windvect, stepsize, maxsteps, plane)
+    drop = RainDrop(startPoint, ind, facadeMesh, windVect, stepSize, maxSteps, endPlane)
     i = 0
     while drop.state != 'finished' and i < drop.maxsteps:
         i += 1
@@ -185,9 +182,10 @@ def main(startPoint, facadeMesh, windVect, stepSize, maxSteps, endPlane):
 
 def start(facadeMesh, point, windVect):
     ray = g.Ray3d(point, windVect)
-    return facadeMesh.mesh.MeshRay(ray)
+    return facadeMesh.MeshRay(ray)
 
+fCrvs = []
 
-facadeMesh = FacadeMesh(mesh, mat)
+facadeMesh = FacadeMesh(facadeMesh, mat)
 for pt in startPoint:
-    a.append(main(pt, facadeMesh, windVect, stepSize, maxSteps, endPlane))
+    fCrvs.append(main(pt, facadeMesh, windVect, stepSize, maxSteps, endPlane))
