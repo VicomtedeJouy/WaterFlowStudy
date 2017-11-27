@@ -5,7 +5,9 @@ import rhinoscriptsyntax as rs
 from Rhino import Geometry as g
 import Rhino.Geometry.Collections as c
 import Rhino.Geometry.Intersect.Intersection as s
-    
+
+
+# OBJECT : waterdrop
 class RainDrop(object):
     def __init__(self, point3d, ind, facadeMesh, windvect, stepsize, maxsteps, plane):
         self.pos = point3d   # position of the flow
@@ -67,7 +69,6 @@ class RainDrop(object):
         # separates the curves after a 'srf to srf' journey
         self.waterPath.append(g.PolylineCurve(self.curveTemp))
         self.curveTemp = []
-        print len(self.waterPath)
 
     def updatePos(self, newPoint, id):
         #   change flow position to the new point
@@ -106,7 +107,9 @@ class RainDrop(object):
             self.state = 'off'  # the waterflow is off the facade
 
 
-class FacadeMesh(object):   #   list of mesh, to be used like a single mesh
+
+# OBJECT : list of mesh, to be used like a single mesh
+class FacadeMesh(object):
     def __init__(self, mesh, mat):
         self.length = len(mesh)
         self.obj = [mesh[i] for i in range(self.length)]
@@ -156,7 +159,7 @@ class FacadeMesh(object):   #   list of mesh, to be used like a single mesh
 def main(startPoint, facadeMesh, windVect, stepSize, maxSteps, endPlane):
     init = start(facadeMesh, startPoint, windVect)
     if not init:
-        return
+        return []
     startPoint = init[0]
     ind = init[1]
     drop = RainDrop(startPoint, ind, facadeMesh, windVect, stepSize, maxSteps, endPlane)
@@ -177,10 +180,7 @@ def main(startPoint, facadeMesh, windVect, stepSize, maxSteps, endPlane):
     # creation of the curves
     curves = []
     for cu in drop.waterPath:
-        #cu = g.PolylineCurve(cu)
-        #cu.Simplify(0, 0.1 * self.stepsize, 3.14)
         curves.append(cu)
-        print rs.CurveLength(cu)
     return curves
 
 
@@ -192,4 +192,7 @@ fCrvs = []
 
 facadeMesh = FacadeMesh(facadeMesh, mat)
 for pt in startPoint:
-    fCrvs.append(main(pt, facadeMesh, windVect, stepSize, maxSteps, endPlane))
+    temp = main(pt, facadeMesh, windVect, stepSize, maxSteps, endPlane)
+    if len(temp) != 0:
+        for cu in temp:
+            fCrvs.append(cu)
