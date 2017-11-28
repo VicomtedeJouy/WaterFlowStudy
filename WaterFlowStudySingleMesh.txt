@@ -77,6 +77,7 @@ class RainDrop(object):
         alpha = g.Vector3d.VectorAngle(vect1, vect2)
         if alpha > self.antol and rs.VectorDotProduct(norm, g.Vector3d(0., 0., 1.)) < 0 :  # if the angle between 2 moves larger than tolerance
             self.state = 'off'  # the waterflow is off the facade
+            edgePoints.append(self.pos)
         alpha = g.Vector3d.VectorAngle(vect2, g.Vector3d(0., 0., -1.))
         if alpha > (math.pi/2-self.androp) and rs.VectorDotProduct(norm, g.Vector3d(0., 0., 1.)) < 0 : # if the geometry is too steep
             self.state = 'off'  # the waterflow is off the facade
@@ -91,6 +92,7 @@ class RainDrop(object):
                 criticalPoints.append(self.pos)
             else:    # the water drop is on an edge
                 self.state = 'off'
+                edgePoints.append(self.pos)
 
 
 
@@ -135,7 +137,9 @@ fCrvs = []
 impactPoints = []
 rainLines = []
 criticalPoints = []
+edgePoints = []
 global criticalPoints
+global edgePoints
 
 for pt in startPoint:
     temp, imPt, rLines = main(pt, facadeMesh, windVect, stepSize, maxSteps, endPlane)
