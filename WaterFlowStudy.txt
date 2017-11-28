@@ -27,7 +27,7 @@ class RainDrop(object):
         self.plane = plane  # plane that define the ground
 
     def nextStep(self):
-        newPlane = rs.PlaneFromNormal(self.pos, self.mesh.NormalAt(self.mpos, self.ind))
+        newPlane = rs.PlaneFromNormal(self.pos, self.mpos.Mesh.NormalAt(self.mpos))
         # create a vector from newFrame XAxis
         downVect = newPlane.XAxis
         # figure out how much to rotate it.
@@ -40,10 +40,9 @@ class RainDrop(object):
         # find next point
         newPoint, id = self.mesh.ClosestPoint(spacePoint)
 
-        if newPoint.Z >= self.pos.Z: # if higher
+        if newPoint.Z > self.pos.Z: # if higher
             self.state = 'off'
             print 'higher', self.ind
-            self.nextSurf()
         #if newPoint == self.pos: # if the water drop stops
         #    self.state = 'off'
         #    print 'stop'
@@ -102,7 +101,7 @@ class RainDrop(object):
     def toldrop(self):
         vect1 = rs.VectorCreate(self.points[-2], self.points[-3])
         vect2 = rs.VectorCreate(self.points[-1], self.points[-2])
-        norm = self.mesh.NormalAt(self.mpos, self.ind)
+        norm = self.mpos.Mesh.NormalAt(self.mpos)
         alpha = g.Vector3d.VectorAngle(vect1, vect2)
         if alpha > self.antol and rs.VectorDotProduct(norm, g.Vector3d(0., 0., 1.)) < 0 :  # if the angle between 2 moves larger than tolerance
             self.state = 'off'  # the waterflow is off the facade
@@ -181,7 +180,7 @@ def main(startPoint, facadeMesh, windVect, stepSize, maxSteps, endPlane):
             drop.toldrop()
         if drop.state == 'on':  # if the waterflow is on the facade
             drop.nextStep()
-        elif drop.state == 'off': # if the waterflow is off the facade (did not used if self.check == 'off' to gain a test)
+        else: # if the waterflow is off the facade (did not used if self.check == 'off' to gain a test)
             drop.check = False  # stop checking until it reaches the facade again
             drop.nextSurf()
             i = 0   # re initialisation of the count to be sure that it is not overtaken
@@ -197,11 +196,14 @@ def start(facadeMesh, point, windVect):
     ray = g.Ray3d(point, windVect)
     return facadeMesh.MeshRay(ray)
 
+
+
 fCrvs = []
 impactPoints = []
 rainLines = []
 
 facadeMesh = FacadeMesh(facadeMesh, mat)
+
 for pt in startPoint:
     temp, imPt, rLines = main(pt, facadeMesh, windVect, stepSize, maxSteps, endPlane)
     if len(temp) != 0:
