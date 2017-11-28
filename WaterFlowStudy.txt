@@ -40,8 +40,12 @@ class RainDrop(object):
         # find next point
         newPoint, id = self.mesh.ClosestPoint(spacePoint)
 
-        if newPoint.Z >= self.pos.Z: # if higher
+        if newPoint.Z > self.pos.Z: # if higher
             self.state = 'finished'
+            print 'higher', self.ind
+        if newPoint == self.pos: # if the water drop stops
+            self.state = 'off'
+            print 'stop'
         #elif self.checkTolerance(newPoint) == True: # if too close
         #    self.state = 'finished'
         else:
@@ -63,7 +67,6 @@ class RainDrop(object):
             id = results[1]
             self.updatePos(newPoint, id)
             self.state = 'on'   # the waterflow is on the facade again
-            
 
     def nextCrv(self):
         # separates the curves after a 'srf to srf' journey
@@ -119,12 +122,12 @@ class FacadeMesh(object):
     def ind(self, mesh):
         return self.obj.index(mesh)
         
-    #   rewriting this methods to use them on facadeMesh as if it was a simple mesh
+    #   rewriting these methods to use them on facadeMesh as if it was a single mesh
     def ClosestPoint(self, point):
         index = 0
         pt = self.obj[0].ClosestPoint(point)
         d = point.DistanceTo(pt)
-        for i in range(self.length):
+        for i in range(1, self.length):
             ptTemp = self.obj[i].ClosestPoint(point)
             dd = point.DistanceTo(ptTemp)
             if dd < d:
@@ -157,22 +160,23 @@ class FacadeMesh(object):
 
 
 def main(startPoint, facadeMesh, windVect, stepSize, maxSteps, endPlane):
+    # does the rain line touch the facade?
     init = start(facadeMesh, startPoint, windVect)
     if not init:    # the rainLine does not touch the facade
         return [], [], []
     startPointDrop = init[0]    # impact point
     ind = init[1]   # index of the mesh the water is on
-    print init
-    # creation of the RainDrop OBJECT
+    
+    # creation and initialization of the RainDrop OBJECT
     drop = RainDrop(startPointDrop, ind, facadeMesh, windVect, stepSize, maxSteps, endPlane)
     i = 0
-    # beginning of the loop to draw the water path
+    
+    # loop that draw the water path
     while drop.state != 'finished' and i < drop.maxsteps:
         i += 1
         if i > 4:
-            drop.check = True
-        if drop.check == True:
-            # check both (not to define twice same objects)
+            drop.check = True   # begin to check
+        if drop.check == True:  # check falling conditions
             drop.toldrop()
         if drop.state == 'on':  # if the waterflow is on the facade
             drop.nextStep()
@@ -180,6 +184,7 @@ def main(startPoint, facadeMesh, windVect, stepSize, maxSteps, endPlane):
             drop.check = False  # stop checking until it reaches the facade again
             drop.nextSurf()
             i = 0   # re initialisation of the count to be sure that it is not overtaken
+    print ind
     # creation of the curves
     curves = []
     for cu in drop.waterPath:
