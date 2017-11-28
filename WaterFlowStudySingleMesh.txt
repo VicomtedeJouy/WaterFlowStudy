@@ -21,7 +21,6 @@ class RainDrop(object):
         self.curveTemp = [self.pos]  # stock a journey on a srf, then back to 0 when changes
         self.waterPath = [] # gets the different curves of a water path
         self.state = 'on'   # if the flow is on or off the facade or finished
-        self.criticalPoint = None   # if the water drop is stuck in a bassin, it will return the spot
         self.maxsteps = maxsteps    # max numbers of iterations
         self.check = False  # True if the flow has to be checked, false otherwise
         self.plane = plane  # plane that define the ground
@@ -40,11 +39,11 @@ class RainDrop(object):
         # find next point
         newPoint = self.mesh.ClosestPoint(spacePoint)
 
-        if newPoint.Z > self.pos.Z: # if higher
-            self.state = 'off'
-            print 'happened'
-            self.nextSurf()
-        if newPoint.DistanceTo(self.pos) < self.stepsize: # if too close
+        #if newPoint.Z > self.pos.Z: # if higher
+        #    self.state = 'off'
+        #    print 'happened'
+        #    self.nextSurf()
+        if newPoint.DistanceTo(self.pos) < self.stepsize/2.: # if too close
             self.accumulation()
         else:
             self.updatePos(newPoint)
@@ -57,12 +56,12 @@ class RainDrop(object):
         if num > 0: # if it does not exists
             self.nextCrv()
             newPoint = ray.PointAt(num)
-            #self.waterPath.append(g.Line(self.pos, newPoint))  # this line can be unchecked if we want to follow the water path off the facade
+            #self.waterPath.append(g.Line(self.pos, newPoint))  # this line can be unhashtagged if we want to follow the water path off the facade
             self.updatePos(newPoint)
             self.state = 'on'   # the waterflow is on the facade again
         else:
             self.nextCrv()
-            #self.pos.Transform(g.Transform.PlanarProjection(self.plane))
+            #self.pos.Transform(g.Transform.PlanarProjection(self.plane))   # these lines can be unhashtagged if we want to display the path of the water to the ground
             #self.points.append(self.pos)
             self.state = 'finished' # the waterflow has ended its path
 
@@ -77,23 +76,6 @@ class RainDrop(object):
         self.curveTemp.append(newPoint)
         self.pos = newPoint
         self.mpos = self.mesh.ClosestMeshPoint(self.pos, 0.)
-        
-    def tol(self):
-        #   tolerance angle check function
-        vect1 = rs.VectorCreate(self.points[-2], self.points[-3])
-        vect2 = rs.VectorCreate(self.points[-1], self.points[-2])
-        norm = self.mesh.NormalAt(self.mpos)
-        alpha = g.Vector3d.VectorAngle(vect1, vect2)
-        if alpha > self.antol and rs.VectorDotProduct(norm, g.Vector3d(0., 0., 1.)) < 0 :  # if the angle between 2 moves larger than tolerance
-            self.state = 'off'  # the waterflow is off the facade
-        
-    def drop(self):
-        #   drop angle check function
-        move = rs.VectorCreate(self.points[-1], self.points[-2])
-        alpha = g.Vector3d.VectorAngle(move, g.Vector3d(0., 0., -1.))
-        norm = self.mesh.NormalAt(self.mpos)
-        if alpha > (math.pi/2-self.androp) and rs.VectorDotProduct(norm, g.Vector3d(0., 0., 1.)) < 0 : # if the geometry is too steep
-            self.state = 'off'  # the waterflow is off the facade
             
     def toldrop(self):
         vect1 = rs.VectorCreate(self.points[-2], self.points[-3])
@@ -111,10 +93,11 @@ class RainDrop(object):
         normal = self.mesh.NormalAt(self.mpos)
         if rs.VectorDotProduct(normal, g.Vector3d(0., 0., -1.)) > 0:    # the water drop is on an edge
             self.state = 'off'
-            self.nextSurf()
-        elif:
+            print 'edge'
+        elif rs.VectorDotProduct(normal, g.Vector3d(0., 0., -1.)) < 0:
             self.state = 'finished'
-            self.criticalPoint = self.pos
+            criticalPoints.append(self.pos)
+            print 'bassin'
 
 
 
@@ -140,15 +123,16 @@ def main(startPoint, facadeMesh, windVect, stepSize, maxSteps, endPlane):
             drop.toldrop()
         if drop.state == 'on':  # if the waterflow is on the facade
             drop.nextStep()
-        elif drop.state == 'off': # if the waterflow is off the facade (did not used if self.check == 'off' to gain a test)
+        if drop.state == 'off': # if the waterflow is off the facade (did not used if self.check == 'off' to gain a test)
             drop.check = False  # stop checking until it reaches the facade again
             drop.nextSurf()
             i = 0   # re initialisation of the count to be sure that it is not overtaken
+    
     # creation of the curves
     curves = []
     for cu in drop.waterPath:
         curves.append(cu)
-    return curves, startPointDrop, g.Line(startPoint, startPointDrop), self.criticalPoint
+    return curves, startPointDrop, g.Line(startPoint, startPointDrop)
 
 
 
@@ -156,12 +140,12 @@ fCrvs = []
 impactPoints = []
 rainLines = []
 criticalPoints = []
+global criticalPoints
 
 for pt in startPoint:
-    temp, imPt, rLines, critic = main(pt, facadeMesh, windVect, stepSize, maxSteps, endPlane)
+    temp, imPt, rLines = main(pt, facadeMesh, windVect, stepSize, maxSteps, endPlane)
     if len(temp) != 0:
         for cu in temp:
             fCrvs.append(cu)
         impactPoints.append(imPt)
         rainLines.append(rLines)
-        criticalPoints.append(critic)
