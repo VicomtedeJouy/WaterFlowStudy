@@ -86,8 +86,8 @@ class RainDrop(object):
         if self.points[-1].Z > self.points[-2].Z or self.points[-1].DistanceTo(self.points[-3]) < self.stepsize/2.:
             normal = self.mesh.NormalAt(self.mpos)
             normal.Unitize()
-            # verify which case : stuck on an edge or in a bassin
-            if rs.VectorDotProduct(normal, g.Vector3d(0., 0., 1.)) > 0.9:   # the water drop is in a bassin
+            # verify which case : stuck on an edge or in a basin
+            if rs.VectorDotProduct(normal, g.Vector3d(0., 0., 1.)) > 0.9:   # the water drop is in a basin
                 self.state = 'finished'
                 criticalPoints.append(self.pos)
             else:    # the water drop is on an edge
