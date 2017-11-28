@@ -125,6 +125,8 @@ def main(startPoint, facadeMesh, windVect, stepSize, maxSteps, endPlane):
     curves = []
     for cu in drop.waterPath:
         curves.append(cu)
+    if len(drop.waterPath) == 0:
+        print 'missed'
     return curves, startPointDrop, g.Line(startPoint, startPointDrop)
 
 
@@ -137,6 +139,7 @@ global criticalPoints
 
 for pt in startPoint:
     temp, imPt, rLines = main(pt, facadeMesh, windVect, stepSize, maxSteps, endPlane)
+    
     if len(temp) != 0:
         for cu in temp:
             fCrvs.append(cu)
