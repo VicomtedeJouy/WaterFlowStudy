@@ -40,12 +40,13 @@ class RainDrop(object):
         # find next point
         newPoint, id = self.mesh.ClosestPoint(spacePoint)
 
-        if newPoint.Z > self.pos.Z: # if higher
-            self.state = 'finished'
-            print 'higher', self.ind
-        if newPoint == self.pos: # if the water drop stops
+        if newPoint.Z >= self.pos.Z: # if higher
             self.state = 'off'
-            print 'stop'
+            print 'higher', self.ind
+            self.nextSurf()
+        #if newPoint == self.pos: # if the water drop stops
+        #    self.state = 'off'
+        #    print 'stop'
         #elif self.checkTolerance(newPoint) == True: # if too close
         #    self.state = 'finished'
         else:
@@ -180,7 +181,7 @@ def main(startPoint, facadeMesh, windVect, stepSize, maxSteps, endPlane):
             drop.toldrop()
         if drop.state == 'on':  # if the waterflow is on the facade
             drop.nextStep()
-        else: # if the waterflow is off the facade (did not used if self.check == 'off' to gain a test)
+        elif drop.state == 'off': # if the waterflow is off the facade (did not used if self.check == 'off' to gain a test)
             drop.check = False  # stop checking until it reaches the facade again
             drop.nextSurf()
             i = 0   # re initialisation of the count to be sure that it is not overtaken
