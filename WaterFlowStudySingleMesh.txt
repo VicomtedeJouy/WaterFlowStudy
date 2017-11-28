@@ -13,7 +13,7 @@ class RainDrop(object):
         self.pos = point3d   # position of the flow
         self.mesh = facadeMesh  # surface mesh of the facade
         self.mpos = self.mesh.ClosestMeshPoint(self.pos, 0.)   # mesh position of the flow
-        self.wind = windvect
+        self.wind = windvect    # vector representing the wind force
         self.antol = mat[0]   # tolerance angle
         self.androp = mat[1] # drop angle
         self.stepsize = stepsize    # interval of steps on the mesh
@@ -21,6 +21,7 @@ class RainDrop(object):
         self.curveTemp = [self.pos]  # stock a journey on a srf, then back to 0 when changes
         self.waterPath = [] # gets the different curves of a water path
         self.state = 'on'   # if the flow is on or off the facade or finished
+        self.criticalPoint = None   # if the water drop is stuck in a bassin, it will return the spot
         self.maxsteps = maxsteps    # max numbers of iterations
         self.check = False  # True if the flow has to be checked, false otherwise
         self.plane = plane  # plane that define the ground
@@ -41,12 +42,10 @@ class RainDrop(object):
 
         if newPoint.Z > self.pos.Z: # if higher
             self.state = 'off'
+            print 'happened'
             self.nextSurf()
-        #if newPoint == self.pos: # if the water drop stops
-        #    self.state = 'off'
-        #    print 'stop'
-        #elif self.checkTolerance(newPoint) == True: # if too close
-        #    self.state = 'finished'
+        if newPoint.DistanceTo(self.pos) < self.stepsize: # if too close
+            self.accumulation()
         else:
             self.updatePos(newPoint)
 
@@ -58,6 +57,7 @@ class RainDrop(object):
         if num > 0: # if it does not exists
             self.nextCrv()
             newPoint = ray.PointAt(num)
+            #self.waterPath.append(g.Line(self.pos, newPoint))  # this line can be unchecked if we want to follow the water path off the facade
             self.updatePos(newPoint)
             self.state = 'on'   # the waterflow is on the facade again
         else:
@@ -105,6 +105,16 @@ class RainDrop(object):
         alpha = g.Vector3d.VectorAngle(vect2, g.Vector3d(0., 0., -1.))
         if alpha > (math.pi/2-self.androp) and rs.VectorDotProduct(norm, g.Vector3d(0., 0., 1.)) < 0 : # if the geometry is too steep
             self.state = 'off'  # the waterflow is off the facade
+            
+    def accumulation(self):
+        # verify which case : stuck on an edge or in a bassin
+        normal = self.mesh.NormalAt(self.mpos)
+        if rs.VectorDotProduct(normal, g.Vector3d(0., 0., -1.)) > 0:    # the water drop is on an edge
+            self.state = 'off'
+            self.nextSurf()
+        elif:
+            self.state = 'finished'
+            self.criticalPoint = self.pos
 
 
 
@@ -130,7 +140,7 @@ def main(startPoint, facadeMesh, windVect, stepSize, maxSteps, endPlane):
             drop.toldrop()
         if drop.state == 'on':  # if the waterflow is on the facade
             drop.nextStep()
-        else: # if the waterflow is off the facade (did not used if self.check == 'off' to gain a test)
+        elif drop.state == 'off': # if the waterflow is off the facade (did not used if self.check == 'off' to gain a test)
             drop.check = False  # stop checking until it reaches the facade again
             drop.nextSurf()
             i = 0   # re initialisation of the count to be sure that it is not overtaken
@@ -138,18 +148,20 @@ def main(startPoint, facadeMesh, windVect, stepSize, maxSteps, endPlane):
     curves = []
     for cu in drop.waterPath:
         curves.append(cu)
-    return curves, startPointDrop, g.Line(startPoint, startPointDrop)
+    return curves, startPointDrop, g.Line(startPoint, startPointDrop), self.criticalPoint
 
 
 
 fCrvs = []
 impactPoints = []
 rainLines = []
+criticalPoints = []
 
 for pt in startPoint:
-    temp, imPt, rLines = main(pt, facadeMesh, windVect, stepSize, maxSteps, endPlane)
+    temp, imPt, rLines, critic = main(pt, facadeMesh, windVect, stepSize, maxSteps, endPlane)
     if len(temp) != 0:
         for cu in temp:
             fCrvs.append(cu)
         impactPoints.append(imPt)
         rainLines.append(rLines)
+        criticalPoints.append(critic)
