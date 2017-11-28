@@ -29,6 +29,7 @@ class RainDrop(object):
         newPlane = rs.PlaneFromNormal(self.pos, self.mesh.NormalAt(self.mpos))
         # create a vector from newFrame XAxis
         downVect = newPlane.XAxis
+        downVect.Unitize()
         # figure out how much to rotate it.
         deltaAngle = g.Vector3d.VectorAngle( downVect, g.Vector3d(0.0, 0.0, -1.0), newPlane )
         # rotate it in the plane
@@ -38,15 +39,7 @@ class RainDrop(object):
         spacePoint = g.Point3d.Add(self.pos, downVect)
         # find next point
         newPoint = self.mesh.ClosestPoint(spacePoint)
-
-        #if newPoint.Z > self.pos.Z: # if higher
-        #    self.state = 'off'
-        #    print 'happened'
-        #    self.nextSurf()
-        if newPoint.DistanceTo(self.pos) < self.stepsize/2.: # if too close
-            self.accumulation()
-        else:
-            self.updatePos(newPoint)
+        self.updatePos(newPoint)
 
     def nextSurf(self):
         # find the next intersection with the mesh
@@ -89,16 +82,15 @@ class RainDrop(object):
             self.state = 'off'  # the waterflow is off the facade
             
     def accumulation(self):
-        # verify which case : stuck on an edge or in a bassin
-        normal = self.mesh.NormalAt(self.mpos)
-        if rs.VectorDotProduct(normal, g.Vector3d(0., 0., -1.)) > 0:    # the water drop is on an edge
-            self.state = 'off'
-            print 'edge'
-        elif rs.VectorDotProduct(normal, g.Vector3d(0., 0., -1.)) < 0:
-            self.state = 'finished'
-            criticalPoints.append(self.pos)
-            print 'bassin'
-
+        if self.points[-1].Z > self.points[-2].Z or self.points[-1].DistanceTo(self.points[-3]) < self.stepsize/2.:
+            normal = self.mesh.NormalAt(self.mpos)
+            normal.Unitize()
+            # verify which case : stuck on an edge or in a bassin
+            if rs.VectorDotProduct(normal, g.Vector3d(0., 0., 1.)) > 0.9:   # the water drop is in a bassin
+                self.state = 'finished'
+                criticalPoints.append(self.pos)
+            else:    # the water drop is on an edge
+                self.state = 'off'
 
 
 
@@ -119,8 +111,9 @@ def main(startPoint, facadeMesh, windVect, stepSize, maxSteps, endPlane):
         i += 1
         if i > 4:
             drop.check = True   # begin to check
-        if drop.check == True:  # check falling conditions
+        if drop.check == True:  # check falling and accumulation conditions
             drop.toldrop()
+            drop.accumulation()
         if drop.state == 'on':  # if the waterflow is on the facade
             drop.nextStep()
         if drop.state == 'off': # if the waterflow is off the facade (did not used if self.check == 'off' to gain a test)
