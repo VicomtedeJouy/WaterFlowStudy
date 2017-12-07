@@ -43,7 +43,7 @@ class RainDrop(object):
 
     def nextSurf(self):
         # find the next intersection with the mesh
-        self.pos = g.Point3d.Add(self.pos, g.Vector3d(0., 0., -1.) * self.stepsize/10)
+        self.pos = g.Point3d.Add(self.pos, g.Vector3d(0., 0., -self.stepsize/10))
         ray = g.Ray3d(self.pos, g.Vector3d(0., 0., -1.))
         num = s.MeshRay(self.mesh, ray)
         if num > 0: # if it does not exists
@@ -83,16 +83,18 @@ class RainDrop(object):
             self.state = 'off'  # the waterflow is off the facade
             
     def accumulation(self):
-        if self.points[-1].Z > self.points[-2].Z or self.points[-1].DistanceTo(self.points[-3]) < self.stepsize/2.:
-            normal = self.mesh.NormalAt(self.mpos)
-            normal.Unitize()
-            # verify which case : stuck on an edge or in a basin
-            if rs.VectorDotProduct(normal, g.Vector3d(0., 0., 1.)) > 0.9:   # the water drop is in a basin
-                self.state = 'finished'
-                criticalPoints.append(self.pos)
-            else:    # the water drop is on an edge
-                self.state = 'off'
-                edgePoints.append(self.pos)
+        if self.points[-1].Z > self.points[-2].Z + self.stepsize/25. or self.points[-1].DistanceTo(self.points[-3]) < self.stepsize/5.:
+            self.bassinEdgeCheck()
+                
+    def bassinEdgeCheck(self):
+        ray = g.Ray3d(self.pos, g.Vector3d(0., 0., -1.))
+        num = s.MeshRay(self.mesh, ray)
+        if num > 0: # it is a bassin a bassin
+            self.state = 'finished'
+            criticalPoints.append(self.pos)
+        else:   # it is an edge
+            self.state = 'off'
+            edgePoints.append(self.pos)
 
 
 
