@@ -90,37 +90,8 @@ class RainDrop(object):
     def accumulation(self):
         # check accumulation conditions (distance, height and stepsize (in order))
         if self.points[-1].DistanceTo(self.points[-3]) < self.points[-1].DistanceTo(self.points[-2]) or self.points[-1].Z > self.points[-2].Z or self.points[-1].DistanceTo(self.points[-2]) < self.stepsize/20.:
-            if self.isInBassin():
-                self.finish()
-                criticalPoints.append(self.pos)
-            elif self.isOnEdge():
-                self.state = 'off'
-                edgePoints.append(self.pos)
-                
-    def isInBassin(self):
-        # bool for bassin loaction according to different conditions
-        norm1 = rs.VectorUnitize(self.mesh.NormalAt(self.mpos))
-        if norm1.Z > 0.95:
-            print 'b1'
-            return True
-        norm0 = rs.VectorUnitize(self.mesh.NormalAt(self.mesh.ClosestMeshPoint(self.points[-2], 0.)))
-        if norm0 != norm1 and norm0.Z > 0. and norm1.Z > 0.:
-            print 'b2'
-            return True
-        return False
-        
-    def isOnEdge(self):
-        # bool for bassin loaction according to different conditions
-        norm2 = rs.VectorUnitize(self.mesh.NormalAt(self.mpos))
-        norm1 = rs.VectorUnitize(self.mesh.NormalAt(self.mesh.ClosestMeshPoint(self.points[-2], 0.)))
-        norm0 = rs.VectorUnitize(self.mesh.NormalAt(self.mesh.ClosestMeshPoint(self.points[-3], 0.)))
-        if self.points[-3].DistanceTo(self.points[-1]) < self.stepsize/20. and norm2 == norm1 and norm0 == norm1 and norm0.Z > 0:
-            print 'e1'
-            return True
-        if norm1 != norm2 and norm2.Z < 0.:
-            print 'e2'
-            return True
-        return False
+            self.finish()
+            criticalPoints.append(self.pos)
 
 
 
@@ -165,10 +136,8 @@ fCrvs = []
 impactPoints = []
 rainLines = []
 criticalPoints = []
-edgePoints = []
 
 global criticalPoints
-global edgePoints
 
 
 for pt in startPoint:
