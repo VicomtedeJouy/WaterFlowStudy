@@ -99,19 +99,19 @@ class RainDrop(object):
                 
     def isInBassin(self):
         # bool for bassin loaction according to different conditions
-        norm1 = self.mesh.NormalAt(self.mpos)
-        if norm1.Normalized().Z > 0.95:
+        norm1 = rs.VectorUnitize(self.mesh.NormalAt(self.mpos))
+        if norm1.Z > 0.95:
             return True 
-        norm0 = self.mesh.NormalAt(self.mesh.ClosestMeshPoint(self.points[-2], 0.))
+        norm0 = rs.VectorUnitize(self.mesh.NormalAt(self.mesh.ClosestMeshPoint(self.points[-2], 0.)))
         if norm0 != norm1 and norm0.Z > 0. and norm1.Z > 0.:
             return True
         return False
         
     def isOnEdge(self):
         # bool for bassin loaction according to different conditions
-        norm2 = self.mesh.NormalAt(self.mpos)
-        norm1 = self.mesh.NormalAt(self.mesh.ClosestMeshPoint(self.points[-2], 0.))
-        norm0 = self.mesh.NormalAt(self.mesh.ClosestMeshPoint(self.points[-3], 0.))
+        norm2 = rs.VectorUnitize(self.mesh.NormalAt(self.mpos))
+        norm1 = rs.VectorUnitize(self.mesh.NormalAt(self.mesh.ClosestMeshPoint(self.points[-2], 0.)))
+        norm0 = rs.VectorUnitize(self.mesh.NormalAt(self.mesh.ClosestMeshPoint(self.points[-3], 0.)))
         if norm2 == norm1 and norm0 == norm1 and norm0.Z > 0:
             return True
         if norm1 != norm2 and norm2.Z < 0.:
