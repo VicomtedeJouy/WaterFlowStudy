@@ -53,24 +53,29 @@ class RainDrop(object):
             self.updatePos(newPoint)
             self.state = 'on'   # the waterflow is on the facade again
         else:
-            self.nextCrv()
+            self.finish()
             #self.pos.Transform(g.Transform.PlanarProjection(self.plane))   # these lines can be unhashtagged if we want to display the path of the water to the ground
             #self.points.append(self.pos)
-            self.state = 'finished' # the waterflow has ended its path
 
     def nextCrv(self):
         # separates the curves after a 'srf to srf' journey
         self.waterPath.append(g.PolylineCurve(self.curveTemp))
         self.curveTemp = []
+        
+    def finish(self):
+        # finish the water path
+        self.waterPath.append(g.PolylineCurve(self.curveTemp))
+        self.state = 'finished'
 
     def updatePos(self, newPoint):
-        #   change flow position to the new point
+        # change flow position to the new point
         self.points.append(newPoint)
         self.curveTemp.append(newPoint)
         self.pos = newPoint
         self.mpos = self.mesh.ClosestMeshPoint(self.pos, 0.)
             
     def toldrop(self):
+        # check angle tolereances 
         vect1 = rs.VectorCreate(self.points[-2], self.points[-3])
         vect2 = rs.VectorCreate(self.points[-1], self.points[-2])
         norm = self.mesh.NormalAt(self.mpos)
@@ -83,18 +88,35 @@ class RainDrop(object):
             self.state = 'off'  # the waterflow is off the facade
             
     def accumulation(self):
-        if self.points[-1].Z > self.points[-2].Z + self.stepsize/25. or self.points[-1].DistanceTo(self.points[-3]) < self.stepsize/5.:
-            self.bassinEdgeCheck()
+        # check accumulation conditions (distance, height and stepsize (in order))
+        if self.points[-1].DistanceTo(self.points[-3]) < self.points[-1].DistanceTo(self.points[-2]) or self.points[-1].Z > self.points[-2].Z or self.points[-1].DistanceTo(self.points[-2]) < self.stepsize/20.:
+            if self.isInBassin():
+                self.finish()
+                criticalPoints.append(self.pos)
+            elif self.isOnEdge():
+                self.state = 'off'
+                edgePoints.append(self.pos)
                 
-    def bassinEdgeCheck(self):
-        ray = g.Ray3d(self.pos, g.Vector3d(0., 0., -1.))
-        num = s.MeshRay(self.mesh, ray)
-        if num > 0: # it is a bassin a bassin
-            self.state = 'finished'
-            criticalPoints.append(self.pos)
-        else:   # it is an edge
-            self.state = 'off'
-            edgePoints.append(self.pos)
+    def isInBassin(self):
+        # bool for bassin loaction according to different conditions
+        norm1 = self.mesh.NormalAt(self.mpos)
+        if norm1.Normalized().Z > 0.95:
+            return True 
+        norm0 = self.mesh.NormalAt(self.mesh.ClosestMeshPoint(self.points[-2], 0.))
+        if norm0 != norm1 and norm0.Z > 0. and norm1.Z > 0.:
+            return True
+        return False
+        
+    def isOnEdge(self):
+        # bool for bassin loaction according to different conditions
+        norm2 = self.mesh.NormalAt(self.mpos)
+        norm1 = self.mesh.NormalAt(self.mesh.ClosestMeshPoint(self.points[-2], 0.))
+        norm0 = self.mesh.NormalAt(self.mesh.ClosestMeshPoint(self.points[-3], 0.))
+        if norm2 == norm1 and norm0 == norm1 and norm0.Z > 0:
+            return True
+        if norm1 != norm2 and norm2.Z < 0.:
+            return True
+        return False
 
 
 
@@ -113,7 +135,7 @@ def main(startPoint, facadeMesh, windVect, stepSize, maxSteps, endPlane):
     # loop that draw the water path
     while drop.state != 'finished' and i < drop.maxsteps:
         i += 1
-        if i > 4:
+        if i > 5:
             drop.check = True   # begin to check
         if drop.check == True:  # check falling and accumulation conditions
             drop.toldrop()
@@ -140,8 +162,10 @@ impactPoints = []
 rainLines = []
 criticalPoints = []
 edgePoints = []
+
 global criticalPoints
 global edgePoints
+
 
 for pt in startPoint:
     temp, imPt, rLines = main(pt, facadeMesh, windVect, stepSize, maxSteps, endPlane)
