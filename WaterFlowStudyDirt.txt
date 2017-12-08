@@ -37,7 +37,7 @@ class RainDrop(object):
         spacePoint = g.Point3d.Add(self.pos, downVect)
         # find next point
         newPoint = self.mesh.ClosestPoint(spacePoint)
-        self.checkDirt(newPoint)
+        if self.dirt == False: self.checkDirt(newPoint)
         self.updatePos(newPoint)
 
     def nextSurf(self):
@@ -76,10 +76,11 @@ class RainDrop(object):
         self.mpos = self.mesh.ClosestMeshPoint(self.pos, 0.)
             
     def checkDirt(self, point):
-        dirVect = rs.VectorUnitize(rs.VectorCreate(self.pos, point))
-        z = dirVect.Z
-        if z < (dirtZone**2 / (1-dirtZone**2))**.5:
-            self.dirt = True
+        if self.pos != point:
+            dirVect = rs.VectorUnitize(rs.VectorCreate(self.pos, point))
+            z = dirVect.Z
+            if z < (dirtZone**2 / (1-dirtZone**2))**.5:
+                self.dirt = True
             
     def toldrop(self):
         # check angle tolereances 
