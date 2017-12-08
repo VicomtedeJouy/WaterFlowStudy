@@ -80,11 +80,11 @@ class RainDrop(object):
         vect2 = rs.VectorCreate(self.points[-1], self.points[-2])
         norm = self.mesh.NormalAt(self.mpos)
         alpha = g.Vector3d.VectorAngle(vect1, vect2)
-        if alpha > self.antol and rs.VectorDotProduct(norm, g.Vector3d(0., 0., 1.)) < 0 :  # if the angle between 2 moves larger than tolerance
+        if alpha > self.antol and norm.Z < 0 :  # if the angle between 2 moves larger than tolerance
             self.state = 'off'  # the waterflow is off the facade
             edgePoints.append(self.pos)
         alpha = g.Vector3d.VectorAngle(vect2, g.Vector3d(0., 0., -1.))
-        if alpha > (math.pi/2-self.androp) and rs.VectorDotProduct(norm, g.Vector3d(0., 0., 1.)) < 0 : # if the geometry is too steep
+        if alpha > (math.pi/2-self.androp) and norm.Z < 0 : # if the geometry is too steep
             self.state = 'off'  # the waterflow is off the facade
             
     def accumulation(self):
@@ -101,11 +101,9 @@ class RainDrop(object):
         # bool for bassin loaction according to different conditions
         norm1 = rs.VectorUnitize(self.mesh.NormalAt(self.mpos))
         if norm1.Z > 0.95:
-            print 'b1'
             return True
         norm0 = rs.VectorUnitize(self.mesh.NormalAt(self.mesh.ClosestMeshPoint(self.points[-2], 0.)))
         if norm0 != norm1 and norm0.Z > 0. and norm1.Z > 0.:
-            print 'b2'
             return True
         return False
         
@@ -115,10 +113,8 @@ class RainDrop(object):
         norm1 = rs.VectorUnitize(self.mesh.NormalAt(self.mesh.ClosestMeshPoint(self.points[-2], 0.)))
         norm0 = rs.VectorUnitize(self.mesh.NormalAt(self.mesh.ClosestMeshPoint(self.points[-3], 0.)))
         if self.points[-3].DistanceTo(self.points[-1]) < self.stepsize/20. and norm2 == norm1 and norm0 == norm1 and norm0.Z > 0:
-            print 'e1'
             return True
         if norm1 != norm2 and norm2.Z < 0.:
-            print 'e2'
             return True
         return False
 
@@ -142,8 +138,8 @@ def main(startPoint, facadeMesh, windVect, stepSize, maxSteps, endPlane):
         if i > 5:
             drop.check = True   # begin to check
         if drop.check == True:  # check falling and accumulation conditions
-            drop.toldrop()
             drop.accumulation()
+            drop.toldrop()
         if drop.state == 'on':  # if the waterflow is on the facade
             drop.nextStep()
         if drop.state == 'off': # if the waterflow is off the facade (did not used if self.check == 'off' to gain a test)
