@@ -14,9 +14,8 @@ class RainDrop(object):
         self.mpos = self.mesh.ClosestMeshPoint(self.pos, 0.)   # mesh position of the flow
         self.wind = windvect    # vector representing the wind force
         self.stepsize = stepsize    # interval of steps on the mesh
-        self.points = [self.pos]  # flow points history
+        self.points = [self.pos for i in range(4)]  # flow points history
         self.curveTemp = []  # stock a journey on a srf, then back to 0 when changes
-        self.dirtyLines = []
         self.waterPath = [] # gets the different curves of a water path
         self.state = 'on'   # if the flow is on or off the facade or finished
         self.maxsteps = maxsteps    # max numbers of iterations
@@ -69,10 +68,10 @@ class RainDrop(object):
 
     def updatePos(self, newPoint):
         # change flow position to the new point
+        self.points.pop(0)
         self.points.append(newPoint)
         if self.dirt:
             self.curveTemp.append(newPoint)
-            self.dirtyLines.append(newPoint)
         self.pos = newPoint
         self.mpos = self.mesh.ClosestMeshPoint(self.pos, 0.)
             
