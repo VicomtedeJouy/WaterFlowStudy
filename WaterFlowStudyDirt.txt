@@ -21,7 +21,7 @@ class RainDrop(object):
         self.maxsteps = maxsteps    # max numbers of iterations
         self.check = False  # True if the flow has to be checked, false otherwise
         self.plane = plane  # plane that define the ground
-        self. dirt = False
+        self.dirt = False
 
     def nextStep(self):
         newPlane = rs.PlaneFromNormal(self.pos, self.mesh.NormalAt(self.mpos))
@@ -76,60 +76,73 @@ class RainDrop(object):
         self.mpos = self.mesh.ClosestMeshPoint(self.pos, 0.)
             
     def checkDirt(self, point):
-        if self.pos != point:
+        # check the slope and change the dirtiness of the waterdrop
+        if self.pos.Z == point.Z:
+            self.dirt = True
+        else:
             dirVect = rs.VectorUnitize(rs.VectorCreate(self.pos, point))
             z = dirVect.Z
             if z < (dirtZone**2 / (1-dirtZone**2))**.5:
                 self.dirt = True
             
-    def toldrop(self):
+    def anglesCheck(self):
         # check angle tolereances 
         vect1 = rs.VectorCreate(self.points[-2], self.points[-3])
         vect2 = rs.VectorCreate(self.points[-1], self.points[-2])
         norm = self.mesh.NormalAt(self.mpos)
+        d13 = self.points[-1].DistanceTo(self.points[-3])
+        d12 = self.points[-1].DistanceTo(self.points[-2]) 
+        
+        # check the tolerance angle 
         alpha = g.Vector3d.VectorAngle(vect1, vect2)
         if alpha > angleTol and norm.Z < 0 :  # if the angle between 2 moves larger than tolerance
             self.state = 'off'  # the waterflow is off the facade
             edgePoints.append(self.pos)
+        # check the drop angle
         alpha = g.Vector3d.VectorAngle(vect2, g.Vector3d(0., 0., -1.))
         if alpha > (math.pi/2-angleDrop) and norm.Z < 0 : # if the geometry is too steep
             self.state = 'off'  # the waterflow is off the facade
             edgePoints.append(self.pos)
+        
+        # check the accumulation
+        if d13 < d12 or self.points[-1].Z > self.points[-2].Z or d12 < self.stepsize/20.:
+            # check bassin 
+            norm1 = rs.VectorUnitize(self.mesh.NormalAt(self.mpos))
             
-    def accumulation(self):
+    def accumulationCheck(self):
+        d13 = self.points[-1].DistanceTo(self.points[-3])
+        d12 = self.points[-1].DistanceTo(self.points[-2])
+        norm0 = rs.VectorUnitize(self.mesh.NormalAt(self.mpos))
+        norm1 = rs.VectorUnitize(self.mesh.NormalAt(self.mesh.ClosestMeshPoint(self.points[-2], 0.)))
+        norm2 = rs.VectorUnitize(self.mesh.NormalAt(self.mesh.ClosestMeshPoint(self.points[-3], 0.)))
         # check accumulation conditions (distance, height and stepsize (in order))
-        if self.points[-1].DistanceTo(self.points[-3]) < self.points[-1].DistanceTo(self.points[-2]) or self.points[-1].Z > self.points[-2].Z or self.points[-1].DistanceTo(self.points[-2]) < self.stepsize/20.:
-            if self.isInBassin():
+        if d13 < d12 or self.points[-1].Z > self.points[-2].Z or d12 < self.stepsize/20.:
+            if self.isInBassin(norm0, norm1):
                 self.finish()
                 criticalPoints.append(self.pos)
-            elif self.isOnEdge():
+            elif self.isOnEdge(norm0, norm1, norm2):
                 self.state = 'off'
                 edgePoints.append(self.pos)
                 
-    def isInBassin(self):
+    def isInBassin(self, norm0, norm1):
         # bool for bassin loaction according to different conditions
-        norm1 = rs.VectorUnitize(self.mesh.NormalAt(self.mpos))
-        if norm1.Z > 0.95:
+        if norm0.Z > 0.95:
             return True
-        norm0 = rs.VectorUnitize(self.mesh.NormalAt(self.mesh.ClosestMeshPoint(self.points[-2], 0.)))
-        if norm0 != norm1 and norm0.Z > 0. and norm1.Z > 0.:
+        if norm1 != norm0 and norm1.Z > 0. and norm0.Z > 0.:
             return True
         return False
         
-    def isOnEdge(self):
+    def isOnEdge(self, norm0, norm1, norm2):
         # bool for bassin loaction according to different conditions
-        norm2 = rs.VectorUnitize(self.mesh.NormalAt(self.mpos))
-        norm1 = rs.VectorUnitize(self.mesh.NormalAt(self.mesh.ClosestMeshPoint(self.points[-2], 0.)))
-        norm0 = rs.VectorUnitize(self.mesh.NormalAt(self.mesh.ClosestMeshPoint(self.points[-3], 0.)))
-        if self.points[-3].DistanceTo(self.points[-1]) < self.stepsize/20. and norm2 == norm1 and norm0 == norm1 and norm0.Z > 0:
+        if self.points[-3].DistanceTo(self.points[-1]) < self.stepsize/20. and norm0 == norm1 and norm2 == norm1 and norm2.Z > 0:
             return True
-        if norm1 != norm2 and norm2.Z < 0.:
+        if norm1 != norm0 and norm0.Z < 0.:
             return True
         return False
 
 
 
-def main(startPoint, facadeMesh, windVect, stepSize, maxSteps, endPlane):
+def pathDrawing(startPoint, facadeMesh, windVect, stepSize, maxSteps, endPlane):
     # does the rain line touch the facade?
     ray = g.Ray3d(startPoint, windVect)
     num = s.MeshRay(facadeMesh, ray)
@@ -147,8 +160,8 @@ def main(startPoint, facadeMesh, windVect, stepSize, maxSteps, endPlane):
         if i > 5:
             drop.check = True   # begin to check
         if drop.check == True:  # check falling and accumulation conditions
-            drop.accumulation()
-            drop.toldrop()
+            drop.accumulationCheck()
+            drop.anglesCheck()
         if drop.state == 'on':  # if the waterflow is on the facade
             drop.nextStep()
         if drop.state == 'off': # if the waterflow is off the facade (did not used if self.check == 'off' to gain a test)
@@ -163,6 +176,17 @@ def main(startPoint, facadeMesh, windVect, stepSize, maxSteps, endPlane):
     if len(drop.waterPath) == 0:
         print 'missed'
     return curves, startPointDrop, g.Line(startPoint, startPointDrop)
+
+def main(startPoint, facadeMesh, windVect, stepSize, maxSteps, endPlane):
+    for pt in startPoint:
+        temp, imPt, rLines = pathDrawing(pt, facadeMesh, windVect, stepSize, maxSteps, endPlane)
+        
+        if len(temp) != 0:
+            for cu in temp:
+                fCrvs.append(cu)
+            impactPoints.append(imPt)
+            rainLines.append(rLines)
+    return fCrvs, impactPoints, rainLines
 
 
 
@@ -181,11 +205,4 @@ dirtZone = 0.17 #math.tan(mat[2])   # angle describing dirty zones
 
 global angleTol, angleDrop, dirtZone
 
-for pt in startPoint:
-    temp, imPt, rLines = main(pt, facadeMesh, windVect, stepSize, maxSteps, endPlane)
-    
-    if len(temp) != 0:
-        for cu in temp:
-            fCrvs.append(cu)
-        impactPoints.append(imPt)
-        rainLines.append(rLines)
+fCrvs, impactPoints, rainLines = main(startPoint, facadeMesh, windVect, stepSize, maxSteps, endPlane)
