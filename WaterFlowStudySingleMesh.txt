@@ -52,10 +52,9 @@ class RainDrop(object):
             self.updatePos(newPoint)
             self.state = 'on'   # the waterflow is on the facade again
         else:
-            self.nextCrv()
+            self.finish()
             #self.pos.Transform(g.Transform.PlanarProjection(self.plane))   # these lines can be unhashtagged if we want to display the path of the water to the ground
             #self.points.append(self.pos)
-            self.state = 'finished' # the waterflow has ended its path
 
     def nextCrv(self):
         # separates the curves after a 'srf to srf' journey
@@ -68,6 +67,11 @@ class RainDrop(object):
         self.curveTemp.append(newPoint)
         self.pos = newPoint
         self.mpos = self.mesh.ClosestMeshPoint(self.pos, 0.)
+        
+    def finish(self):
+        # finish the water path
+        self.waterPath.append(g.PolylineCurve(self.curveTemp))
+        self.state = 'finished'
         
     def pop(self):
         # get the last position off (because an error would occure otherwise)
@@ -103,7 +107,7 @@ class RainDrop(object):
         if self.points[-1].Z > self.points[-2].Z or d12 < self.stepsize/20.:
             # verify which case : stuck on an edge or in a basin
             if norm0.Z > 0.99 or (norm1 != norm0 and norm1.Z >= 0 and norm0.Z >= 0):   # the water drop is in a basin
-                self.state = 'finished'
+                self.finish()
                 criticalPoints.append(self.pos)
             else:    # the water drop is on an edge
                 self.state = 'off'
@@ -116,7 +120,7 @@ class RainDrop(object):
             if line.DistanceTo(self.pos, True) < self.stepsize/50.:
                 # it is in a basin
                 if norm.Z >= 0.:
-                    self.state = 'finished'
+                    self.finish()
                     criticalPoints.append(self.pos)
                 # it is on an edge
                 else:

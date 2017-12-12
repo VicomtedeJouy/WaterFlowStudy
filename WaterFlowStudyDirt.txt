@@ -11,6 +11,7 @@ class RainDrop(object):
     def __init__(self, point3d, facadeMesh, windvect, stepsize, maxsteps, plane):
         self.pos = point3d   # position of the flow
         self.mesh = facadeMesh  # surface mesh of the facade
+        self.edges = [facadeMesh.TopologyEdges.EdgeLine(i) for i in range(facadeMesh.TopologyEdges.Count)]
         self.mpos = self.mesh.ClosestMeshPoint(self.pos, 0.)   # mesh position of the flow
         self.wind = windvect    # vector representing the wind force
         self.stepsize = stepsize    # interval of steps on the mesh
@@ -65,7 +66,14 @@ class RainDrop(object):
         # finish the water path
         self.waterPath.append(g.PolylineCurve(self.curveTemp))
         self.state = 'finished'
-
+        
+    def pop(self):
+        # get the last position off (because an error would occure otherwise)
+        self.points.pop()
+        self.curveTemp.pop()
+        self.pos = self.points[-1]
+        self.mpos = self.mesh.ClosestMeshPoint(self.pos, 0.)
+    
     def updatePos(self, newPoint):
         # change flow position to the new point
         self.points.pop(0)
@@ -103,42 +111,39 @@ class RainDrop(object):
         if alpha > (math.pi/2-angleDrop) and norm.Z < 0 : # if the geometry is too steep
             self.state = 'off'  # the waterflow is off the facade
             edgePoints.append(self.pos)
-        
-        # check the accumulation
-        if d13 < d12 or self.points[-1].Z > self.points[-2].Z or d12 < self.stepsize/20.:
-            # check bassin 
-            norm1 = rs.VectorUnitize(self.mesh.NormalAt(self.mpos))
             
     def accumulationCheck(self):
-        d13 = self.points[-1].DistanceTo(self.points[-3])
         d12 = self.points[-1].DistanceTo(self.points[-2])
         norm0 = rs.VectorUnitize(self.mesh.NormalAt(self.mpos))
+        # special check when the water drop stops
+        if d12 == 0.:
+            self.pop()
+            #weirdos.append(self.pos)
+            self.edgeCheck(norm0)
         norm1 = rs.VectorUnitize(self.mesh.NormalAt(self.mesh.ClosestMeshPoint(self.points[-2], 0.)))
-        norm2 = rs.VectorUnitize(self.mesh.NormalAt(self.mesh.ClosestMeshPoint(self.points[-3], 0.)))
         # check accumulation conditions (distance, height and stepsize (in order))
-        if d13 < d12 or self.points[-1].Z > self.points[-2].Z or d12 < self.stepsize/20.:
-            if self.isInBassin(norm0, norm1):
-                self.finish()
+        if self.points[-1].Z > self.points[-2].Z or d12 < self.stepsize/20.:
+            # verify which case : stuck on an edge or in a basin
+            if norm0.Z > 0.99 or (norm1 != norm0 and norm1.Z >= 0 and norm0.Z >= 0):   # the water drop is in a basin
+                self.state = 'finished'
                 criticalPoints.append(self.pos)
-            elif self.isOnEdge(norm0, norm1, norm2):
+            else:    # the water drop is on an edge
                 self.state = 'off'
                 edgePoints.append(self.pos)
                 
-    def isInBassin(self, norm0, norm1):
-        # bool for bassin loaction according to different conditions
-        if norm0.Z > 0.95:
-            return True
-        if norm1 != norm0 and norm1.Z > 0. and norm0.Z > 0.:
-            return True
-        return False
-        
-    def isOnEdge(self, norm0, norm1, norm2):
-        # bool for bassin loaction according to different conditions
-        if self.points[-3].DistanceTo(self.points[-1]) < self.stepsize/20. and norm0 == norm1 and norm2 == norm1 and norm2.Z > 0:
-            return True
-        if norm1 != norm0 and norm0.Z < 0.:
-            return True
-        return False
+    def edgeCheck(self, norm):
+        # check if the drop is close to a mesh edge
+        for i in range(len(self.edges)):
+            line = self.edges[i]
+            if line.DistanceTo(self.pos, True) < self.stepsize/50.:
+                # it is in a basin
+                if norm.Z >= 0.:
+                    self.state = 'finished'
+                    criticalPoints.append(self.pos)
+                # it is on an edge
+                else:
+                    self.state = 'off'
+                    edgePoints.append(self.pos)
 
 
 
