@@ -91,7 +91,6 @@ class RainDrop(object):
             self.state = 'off'  # the waterflow is off the facade
             
     def accumulationCheck(self):
-        d13 = self.points[-1].DistanceTo(self.points[-3])
         d12 = self.points[-1].DistanceTo(self.points[-2])
         norm0 = rs.VectorUnitize(self.mesh.NormalAt(self.mpos))
         # special check when the water drop stops
@@ -101,7 +100,7 @@ class RainDrop(object):
             self.edgeCheck(norm0)
         norm1 = rs.VectorUnitize(self.mesh.NormalAt(self.mesh.ClosestMeshPoint(self.points[-2], 0.)))
         # check accumulation conditions (distance, height and stepsize (in order))
-        if d13 < d12 or self.points[-1].Z > self.points[-2].Z or d12 < self.stepsize/20.:
+        if self.points[-1].Z > self.points[-2].Z or d12 < self.stepsize/20.:
             # verify which case : stuck on an edge or in a basin
             if norm0.Z > 0.99 or (norm1 != norm0 and norm1.Z >= 0 and norm0.Z >= 0):   # the water drop is in a basin
                 self.state = 'finished'
