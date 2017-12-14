@@ -9,20 +9,18 @@ import Rhino.Geometry.Intersect.Intersection as s
 
 # OBJECT : waterdrop
 class RainDrop(object):
-    def __init__(self, point3d, facadeMesh, windvect, stepsize, maxsteps, plane):
+    def __init__(self, point3d):
         self.pos = point3d   # position of the flow
-        self.mesh = facadeMesh  # surface mesh of the facade
-        self.edges = [facadeMesh.TopologyEdges.EdgeLine(i) for i in range(facadeMesh.TopologyEdges.Count)]
+        self.mesh = facadeMesh
+        #self.edges = [line for line in edges if isinstance(line, g.Line)]
+        self.edges = [self.mesh.TopologyEdges.EdgeLine(i) for i in range(self.mesh.TopologyEdges.Count)]
         self.mpos = self.mesh.ClosestMeshPoint(self.pos, 0.)   # mesh position of the flow
-        self.wind = windvect    # vector representing the wind force
-        self.stepsize = stepsize    # interval of steps on the mesh
         self.points = [self.pos]  # flow points history
         self.curveTemp = [self.pos]  # stock a journey on a srf, then back to 0 when changes
         self.waterPath = [] # gets the different curves of a water path
         self.state = 'on'   # if the flow is on or off the facade or finished
-        self.maxsteps = maxsteps    # max numbers of iterations
+        self.count = 0  # step counter
         self.check = False  # True if the flow has to be checked, false otherwise
-        self.plane = plane  # plane that define the ground
 
     def nextStep(self):
         newPlane = rs.PlaneFromNormal(self.pos, self.mesh.NormalAt(self.mpos))
@@ -34,7 +32,7 @@ class RainDrop(object):
         # rotate it in the plane
         downVect.Rotate( deltaAngle, newPlane.ZAxis)
         # set the length
-        downVect = rs.VectorScale(downVect, self.stepsize)
+        downVect = rs.VectorScale(downVect, stepSize)
         spacePoint = g.Point3d.Add(self.pos, downVect)
         # find next point
         newPoint = self.mesh.ClosestPoint(spacePoint)
@@ -42,7 +40,7 @@ class RainDrop(object):
 
     def nextSurf(self):
         # find the next intersection with the mesh
-        self.pos = g.Point3d.Add(self.pos, g.Vector3d(0., 0., -1.) * self.stepsize/10)
+        self.pos = g.Point3d.Add(self.pos, g.Vector3d(0., 0., -1.) * stepSize/10)
         ray = g.Ray3d(self.pos, g.Vector3d(0., 0., -1.))
         num = s.MeshRay(self.mesh, ray)
         if num > 0: # if it does not exists
@@ -53,7 +51,7 @@ class RainDrop(object):
             self.state = 'on'   # the waterflow is on the facade again
         else:
             self.finish()
-            #self.pos.Transform(g.Transform.PlanarProjection(self.plane))   # these lines can be unhashtagged if we want to display the path of the water to the ground
+            #self.pos.Transform(g.Transform.PlanarProjection(endPlane))   # these lines can be unhashtagged if we want to display the path of the water to the ground
             #self.points.append(self.pos)
 
     def nextCrv(self):
@@ -104,7 +102,7 @@ class RainDrop(object):
             self.edgeCheck(norm0)
         norm1 = rs.VectorUnitize(self.mesh.NormalAt(self.mesh.ClosestMeshPoint(self.points[-2], 0.)))
         # check accumulation conditions (distance, height and stepsize (in order))
-        if self.points[-1].Z > self.points[-2].Z or d12 < self.stepsize/20.:
+        if self.points[-1].Z > self.points[-2].Z or d12 < stepSize/20.:
             # verify which case : stuck on an edge or in a basin
             if norm0.Z > 0.99 or (norm1 != norm0 and norm1.Z >= 0 and norm0.Z >= 0):   # the water drop is in a basin
                 self.finish()
@@ -117,7 +115,7 @@ class RainDrop(object):
         # check if the drop is close to a mesh edge
         for i in range(len(self.edges)):
             line = self.edges[i]
-            if line.DistanceTo(self.pos, True) < self.stepsize/50.:
+            if line.DistanceTo(self.pos, True) < stepSize/50.:
                 # it is in a basin
                 if norm.Z >= 0.:
                     self.finish()
@@ -129,22 +127,22 @@ class RainDrop(object):
 
 
 
-def pathDrawing(startPoint, facadeMesh, windVect, stepSize, maxSteps, endPlane):
+def impactPoint(startPoint):
     # does the rain line touch the facade?
     ray = g.Ray3d(startPoint, windVect)
     num = s.MeshRay(facadeMesh, ray)
     if num <= 0:    # the rainLine does not touch the facade
-        return [], [], []
+        return
     startPointDrop = ray.PointAt(num)    # impact point
-    
-    # creation and initialization of the RainDrop OBJECT
-    drop = RainDrop(startPointDrop, facadeMesh, windVect, stepSize, maxSteps, endPlane)
-    i = 0
-    
+    impactPoints.append(startPointDrop)
+    rainLines.append(g.Line(startPoint, startPointDrop))
+    return startPointDrop
+
+def pathDrawing(drop):
     # loop that draw the water path
-    while drop.state != 'finished' and i < drop.maxsteps:
-        i += 1
-        if i > 5:
+    while drop.state != 'finished' and drop.count < maxSteps:
+        drop.count += 1
+        if drop.count > 5:
             drop.check = True   # begin to check
         if drop.check == True:  # check falling and accumulation conditions
             drop.accumulationCheck()
@@ -154,26 +152,30 @@ def pathDrawing(startPoint, facadeMesh, windVect, stepSize, maxSteps, endPlane):
         if drop.state == 'off': # if the waterflow is off the facade (did not used if self.check == 'off' to gain a test)
             drop.check = False  # stop checking until it reaches the facade again
             drop.nextSurf()
-            i = 0   # re initialisation of the count to be sure that it is not overtaken
+            drop.count = 0   # re initialisation of the count to be sure that it is not overtaken
     
     # creation of the curves
     curves = []
     for cu in drop.waterPath:
         curves.append(cu)
-    if len(drop.waterPath) == 0:
-        print 'missed'
-    return curves, startPointDrop, g.Line(startPoint, startPointDrop)
+    return curves
 
-def main(startPoint, facadeMesh, windVect, stepSize, maxSteps, endPlane):
+def main(startPoint):
+    # draw the path from the rain that hit the facade
+    startPointDrop = []
     for pt in startPoint:
-        temp, imPt, rLines = pathDrawing(pt, facadeMesh, windVect, stepSize, maxSteps, endPlane)
-        
+        if impactPoint(pt) != None:
+            startPointDrop.append(impactPoint(pt))
+            
+    for pt in startPointDrop:
+        drop = RainDrop(pt)
+        temp = pathDrawing(drop)
+        del drop
         if len(temp) != 0:
             for cu in temp:
                 fCrvs.append(cu)
-            impactPoints.append(imPt)
-            rainLines.append(rLines)
-    return fCrvs, impactPoints, rainLines
+    # return the curves
+    return fCrvs
 
 
 
@@ -183,10 +185,20 @@ rainLines = []
 criticalPoints = [] # points where the program has stopped because of flatness
 edgePoints = [] # points where the water drops dropped from the facade
 
+# global list 
 global criticalPoints
 global edgePoints
+global impactPoints
+global rainLines
+
+# global parameters
+global stepSize
+global windVect
+global maxSteps
+global facadeMesh
+
 
 angleTol = mat[0]   # angle of change of direction tolerance 
 angleDrop = mat[1]  # angle for water drops
 
-fCrvs, impactPoints, rainLines = main(startPoint, facadeMesh, windVect, stepSize, maxSteps, endPlane)
+fCrvs = main(startPoint)
