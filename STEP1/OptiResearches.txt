@@ -9,7 +9,7 @@ import Rhino.Geometry.Intersect.Intersection as s
 
 # OBJECT : waterdrop
 class RainDrop(object):
-    def __init__(self, point3d):
+    def __init__(self, point3d, facadeMesh):
         self.pos = point3d   # position of the flow
         self.mesh = facadeMesh
         #self.edges = [line for line in edges if isinstance(line, g.Line)]
@@ -20,7 +20,6 @@ class RainDrop(object):
         self.waterPath = [] # gets the different curves of a water path
         self.state = 'on'   # if the flow is on or off the facade or finished
         self.count = 0  # step counter
-        self.check = False  # True if the flow has to be checked, false otherwise
 
     def nextStep(self):
         newPlane = rs.PlaneFromNormal(self.pos, self.mesh.NormalAt(self.mpos))
@@ -127,7 +126,7 @@ class RainDrop(object):
 
 
 
-def impactPoint(startPoint):
+def impactPoint(startPoint, facadeMesh):
     # does the rain line touch the facade?
     ray = g.Ray3d(startPoint, windVect)
     num = s.MeshRay(facadeMesh, ray)
@@ -142,9 +141,7 @@ def pathDrawing(drop):
     # loop that draw the water path
     while drop.state != 'finished' and drop.count < maxSteps:
         drop.count += 1
-        if drop.count > 5:
-            drop.check = True   # begin to check
-        if drop.check == True:  # check falling and accumulation conditions
+        if drop.count > 5:  # check falling and accumulation conditions
             drop.accumulationCheck()
             drop.anglesCheck()
         if drop.state == 'on':  # if the waterflow is on the facade
@@ -160,18 +157,16 @@ def pathDrawing(drop):
         curves.append(cu)
     return curves
 
-def main(startPoint):
+def main(startPoint, facadeMesh):
     # draw the path from the rain that hit the facade
-    startPointDrop = []
     for pt in startPoint:
-        if impactPoint(pt) != None:
-            startPointDrop.append(impactPoint(pt))
-            
-    for pt in startPointDrop:
-        drop = RainDrop(pt)
-        temp = pathDrawing(drop)
-        del drop
-        if len(temp) != 0:
+        temp = []
+        pt = impactPoint(pt, facadeMesh)
+        if pt != None:
+            drop = RainDrop(pt, facadeMesh)
+            temp = pathDrawing(drop)
+            del drop
+        if len(temp) > 0:
             for cu in temp:
                 fCrvs.append(cu)
     # return the curves
@@ -191,14 +186,8 @@ global edgePoints
 global impactPoints
 global rainLines
 
-# global parameters
-global stepSize
-global windVect
-global maxSteps
-global facadeMesh
-
 
 angleTol = mat[0]   # angle of change of direction tolerance 
 angleDrop = mat[1]  # angle for water drops
 
-fCrvs = main(startPoint)
+fCrvs = main(startPoint, facadeMesh)
