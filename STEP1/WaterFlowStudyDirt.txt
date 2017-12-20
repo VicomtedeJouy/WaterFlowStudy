@@ -7,6 +7,8 @@ from Rhino import Geometry as g
 import Rhino.Geometry.Collections as c
 import Rhino.Geometry.Intersect.Intersection as s
 
+import random as r
+
 from System import Object
 from Grasshopper import DataTree
 from Grasshopper.Kernel.Data import GH_Path
@@ -44,18 +46,19 @@ class RainDrop(object):
 
     def nextStep(self):        
         newPlane = rs.PlaneFromNormal(self.pos, self.mesh.NormalAt(self.mpos))
-        # create a vector from newFrame XAxis
+        
+        # figure out how much to rotate it to put it in the slope
+        deltaAngle = g.Vector3d.VectorAngle( newPlane.XAxis, g.Vector3d(0., 0., -1.), newPlane )
+        # rotate it in the plane
+        newPlane.Rotate( deltaAngle, newPlane.ZAxis, newPlane.Origin)
+        # set the movement vector
         downVect = newPlane.XAxis
         downVect.Unitize()
-        # figure out how much to rotate it.
-        deltaAngle = g.Vector3d.VectorAngle( downVect, g.Vector3d(0.0, 0.0, -1.0), newPlane )
-        # rotate it in the plane
-        downVect.Rotate( deltaAngle, newPlane.ZAxis)
-        # set the length
         downVect = rs.VectorScale(downVect, self.stepsize)
         spacePoint = g.Point3d.Add(self.pos, downVect)
         # find next point
         newPoint = self.mesh.ClosestPoint(spacePoint)
+        newPoint = self.randomDir(newPoint, newPlane)
         self.updatePos(newPoint)
 
     def nextSurf(self):
@@ -144,6 +147,25 @@ class RainDrop(object):
                 else:
                     self.state = 'off'
                     edgePoints.append(self.pos)
+                    
+    def randomDir(self, point, plane):
+        if rs.VectorUnitize(plane.XAxis).Z > -.5:
+            return point
+        
+        random = r.randint(0, 9)
+        
+        if random < 8:
+            return point
+        else:
+            YAxis = rs.VectorUnitize(rs.VectorUnitize(plane.YAxis))
+            ratio = 0.18
+            if random == 8:
+                
+                point = point + YAxis * self.stepsize/5.
+                return self.mesh.ClosestPoint(point)
+            if random == 9:
+                point = point - YAxis * self.stepsize/5.
+                return self.mesh.ClosestPoint(point)
 
 
 
