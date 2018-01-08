@@ -6,111 +6,161 @@ from Rhino import Geometry as g
 import Rhino.Geometry.Collections as c
 import Rhino.Geometry.Intersect.Intersection as s
 from scriptcontext import sticky as st
-import random
+import random as r
 
 
-# OBJECT : waterdrop
-class RainDrop:
-    def __init__(self, point3d, facadeMesh):
+# OBJECT
+class ObjectDropList(object):
+    def __init__(self):
+        self.drops = []
+        self.length = len(self.drops)
+        
+    def addDrop(self, drop):
+        self.drops.append(drop)
+        return self.length - 1
+        
+    def delDrop(self, ind):
+        del self.drops[ind]
+        for i in range(ind, self.length):
+            self.drops[i].indexList -= 1
+        self.lengthUpdate()
+            
+    def lengthUpdate(self):
+        self.length = len(self.drops)
+
+
+class RainDrop(object):
+    def __init__(self, point3d, facadeMesh, dropList):
         self.pos = point3d   # position of the flow
-        self.mesh = facadeMesh
-        #self.edges = [line for line in edges if isinstance(line, g.Line)]
-        self.edges = [self.mesh.TopologyEdges.EdgeLine(i) for i in range(self.mesh.TopologyEdges.Count)]
+        self.mesh = facadeMesh  # surface mesh of the facade
+        self.edges = [facadeMesh.TopologyEdges.EdgeLine(i) for i in range(facadeMesh.TopologyEdges.Count)]
         self.mpos = self.mesh.ClosestMeshPoint(self.pos, 0.)   # mesh position of the flow
+        self.wind = windVect    # vector representing the wind force
+        self.stepsize = stepSize    # interval of steps on the mesh
+        self.state = 'on'   # if the flow is on or off the facade or finished
+        self.maxsteps = maxSteps    # max numbers of iterations
+        self.count = 0  # step advancement
+        self.check = False  # True if the flow has to be checked, false otherwise
+        self.indexList = dropList.addDrop(self)
+        
+        # data collection
+        self.step = 0.
         self.points = [self.pos]  # flow points history
         self.curveTemp = [self.pos]  # stock a journey on a srf, then back to 0 when changes
         self.waterPath = [] # gets the different curves of a water path
-        self.step = []
-        self.state = 'on'   # if the flow is on or off the facade or finished
-        self.count = 0  # step counter
+        self.waterPoints = []   # gets the different points of a water path
+        self.dirtCoef = 0
+        self.dirtTemp = []
+        self.dirtPath = []
+
+
+    ### MOVEMENT AREA ###
 
     def nextStep(self):
+        if self.state == 'on':  # if the waterflow is on the facade
+            self.nextStepOn()
+        if self.state == 'off': # if the waterflow is off the facade (did not used if self.check == 'off' to gain a test)
+            self.check = False  # stop checking until it reaches the facade again
+            self.nextStepOff()
+            self.count = 0   # re initialisation of the count to be sure that it is not overtaken
+
+    def nextStepOn(self):        
         newPlane = rs.PlaneFromNormal(self.pos, self.mesh.NormalAt(self.mpos))
-        # create a vector from newFrame XAxis
+        
+        # figure out how much to rotate it to put it in the slope
+        deltaAngle = g.Vector3d.VectorAngle( newPlane.XAxis, g.Vector3d(0., 0., -1.), newPlane )
+        # rotate it in the plane
+        newPlane.Rotate( deltaAngle, newPlane.ZAxis, newPlane.Origin)
+        # set the movement vector
         downVect = newPlane.XAxis
         downVect.Unitize()
-        # figure out how much to rotate it.
-        deltaAngle = g.Vector3d.VectorAngle( downVect, g.Vector3d(0.0, 0.0, -1.0), newPlane )
-        # rotate it in the plane
-        downVect.Rotate( deltaAngle, newPlane.ZAxis)
-        # set the length
-        downVect = rs.VectorScale(downVect, stepSize)
+        downVect = rs.VectorScale(downVect, self.stepsize)
         spacePoint = g.Point3d.Add(self.pos, downVect)
         # find next point
         newPoint = self.mesh.ClosestPoint(spacePoint)
+        newPoint = self.randomDir(newPoint, newPlane)
         self.updatePos(newPoint)
 
-    def nextSurf(self):
+    def nextStepOff(self):
         # find the next intersection with the mesh
-        self.pos = g.Point3d.Add(self.pos, g.Vector3d(0., 0., -1.) * stepSize/10)
+        self.pos = g.Point3d.Add(self.pos, g.Vector3d(0., 0., -1.) * self.stepsize/10)
         ray = g.Ray3d(self.pos, g.Vector3d(0., 0., -1.))
         num = s.MeshRay(self.mesh, ray)
-        if num > 0: # if it does not exists
-            self.nextCrv()
+        if num > 0: 
+            # if the water drops on the facade
             newPoint = ray.PointAt(num)
-            #self.waterPath.append(g.Line(self.pos, newPoint))  # this line can be unhashtagged if we want to follow the water path off the facade
+            
+            self.state = 'landing'
+            self.updateData(newPoint)
+            
+            self.state = 'on'
             self.updatePos(newPoint)
-            self.state = 'on'   # the waterflow is on the facade again
         else:
-            self.finish()
-            #self.pos.Transform(g.Transform.PlanarProjection(endPlane))   # these lines can be unhashtagged if we want to display the path of the water to the ground
-            #self.points.append(self.pos)
-
-    def nextCrv(self):
-        # separates the curves after a 'srf to srf' journey
-        self.waterPath.append(g.PolylineCurve(self.curveTemp))
-        self.curveTemp = []
+            self.state = 'finished'
 
     def updatePos(self, newPoint):
-        #   change flow position to the new point
+        # update the position of the drop on the facade, and all the values that comes with it
         self.points.append(newPoint)
-        self.curveTemp.append(newPoint)
         self.pos = newPoint
         self.mpos = self.mesh.ClosestMeshPoint(self.pos, 0.)
-        self.step = g.Line(self.points[-2], self.points[-1])
-        
-    def finish(self):
-        # finish the water path
-        self.waterPath.append(g.PolylineCurve(self.curveTemp))
-        self.state = 'finished'
         
     def pop(self):
         # get the last position off (because an error would occure otherwise)
         self.points.pop()
-        self.curveTemp.pop()
         self.pos = self.points[-1]
         self.mpos = self.mesh.ClosestMeshPoint(self.pos, 0.)
-            
+    
+    ### CHECK AREA ###
+    
+    def checkStep(self):
+        if self.count > 3:
+            self.check = True   # begin to check
+        if self.check == True:  # check falling and accumulation conditions
+            self.accumulationCheck()
+            self.anglesCheck()
+    
     def anglesCheck(self):
-        vect1 = rs.VectorCreate(self.points[-2], self.points[-3])
-        vect2 = rs.VectorCreate(self.points[-1], self.points[-2])
+        vect1 = rs.VectorUnitize(rs.VectorCreate(self.points[-2], self.points[-3]))
+        vect2 = rs.VectorUnitize(rs.VectorCreate(self.points[-1], self.points[-2]))
         norm = self.mesh.NormalAt(self.mpos)
-        alpha = g.Vector3d.VectorAngle(vect1, vect2)
-        # check the tolerance angle 
-        if alpha > angleTol and rs.VectorDotProduct(norm, g.Vector3d(0., 0., 1.)) < 0 :  # if the angle between 2 moves larger than tolerance
+        
+        # check the tolerance angle
+        #alpha = g.Vector3d.VectorAngle(vect1, vect2) 
+        alpha = math.acos(min(1., rs.VectorDotProduct(vect1, vect2)))
+        if alpha > angleTol and norm.Z < 0 :  # if the angle between 2 moves larger than tolerance
+            self.pop()
             self.state = 'off'  # the waterflow is off the facade
             edgePoints.append(self.pos)
-        # check the drop angle 
-        alpha = g.Vector3d.VectorAngle(vect2, g.Vector3d(0., 0., -1.))
-        if alpha > (math.pi/2-angleDrop) and rs.VectorDotProduct(norm, g.Vector3d(0., 0., 1.)) < 0 : # if the geometry is too steep
+        
+        # check the drop angle
+        #alpha = g.Vector3d.VectorAngle(vect2, g.Vector3d(0., 0., -1.))
+        alpha = math.acos(-vect2.Z)
+        if alpha > angleDrop and norm.Z < 0 : # if the geometry is too steep
+            self.pop()
             self.state = 'off'  # the waterflow is off the facade
+            edgePoints.append(self.pos)
             
     def accumulationCheck(self):
         d12 = self.points[-1].DistanceTo(self.points[-2])
         norm0 = rs.VectorUnitize(self.mesh.NormalAt(self.mpos))
+        
         # special check when the water drop stops
         if d12 == 0.:
             self.pop()
-            #weirdos.append(self.pos)
             self.edgeCheck(norm0)
         norm1 = rs.VectorUnitize(self.mesh.NormalAt(self.mesh.ClosestMeshPoint(self.points[-2], 0.)))
+        
         # check accumulation conditions (distance, height and stepsize (in order))
-        if self.points[-1].Z > self.points[-2].Z or d12 < stepSize/20.:
+        if self.points[-1].Z > self.points[-2].Z or d12 < self.stepsize/20.:
             # verify which case : stuck on an edge or in a basin
-            if norm0.Z > 0.99 or (norm1 != norm0 and norm1.Z >= 0 and norm0.Z >= 0):   # the water drop is in a basin
-                self.finish()
+            if norm0.Z > 0.99 or (norm1 != norm0 and norm1.Z >= 0 and norm0.Z >= 0):
+                # the water drop is in a basin
+                self.pop()
+                self.state = 'finished'
                 criticalPoints.append(self.pos)
-            else:    # the water drop is on an edge
+            else:
+                # the water drop is on an edge    
+                self.pop()
                 self.state = 'off'
                 edgePoints.append(self.pos)
                 
@@ -118,21 +168,91 @@ class RainDrop:
         # check if the drop is close to a mesh edge
         for i in range(len(self.edges)):
             line = self.edges[i]
-            if line.DistanceTo(self.pos, True) < stepSize/50.:
+            if line.DistanceTo(self.pos, True) < self.stepsize/50.:
                 # it is in a basin
                 if norm.Z >= 0.:
-                    self.finish()
+                    self.state = 'finished'
                     criticalPoints.append(self.pos)
                 # it is on an edge
                 else:
                     self.state = 'off'
                     edgePoints.append(self.pos)
+        self.state = 'finished'
+        criticalPoints.append(self.pos)
+    
+    
+    ### DATA STORAGE ###
+    
+    def updateData(self, *point):
+        self.count += 1
+        # update the lists of data that are recorded during the resolution
+        if self.state == 'on':
+            self.curveTemp.append(self.pos)
+            self.dirtCoef += self.getDirtCoef()
+            self.dirtTemp.append(self.dirtCoef)
+            self.step = g.Line(self.points[-2], self.points[-1])
+            
+        if self.state == 'landing':
+            # creates new lists to collect data
+            self.curveTemp = [point[0]]
+            self.dirtTemp = []
+            
+        if self.state == 'finished' or self.state == 'off':
+            # collect the datas
+            self.waterPath.append(g.PolylineCurve(self.curveTemp))
+            self.waterPoints.append(self.curveTemp)
+            self.dirtPath.append(self.dirtTemp)
+    
+    
+    ### FONCTIONNALITY AREA ###
+    
+    def randomDir(self, point, plane):
+        # check if the drop has hit a flat srf and return a random direction if so
+        if point == self.pos and self.count < 3:
+            random = r.uniform(0., 2* math.pi)
+            vect = g.Vector3d(1., 0., 0.) * self.stepsize
+            vect.Rotate(random, plane.ZAxis)
+            point = self.mesh.ClosestPoint(self.pos + vect)
+            return point
+        
+        # check if the drop is riding verticaly
+        if rs.VectorUnitize(plane.XAxis).Z > -.5:
+            return point
+        
+        random = r.randint(0, 9)
+        # 3 choices : downward, or two side shifting
+        if random < 8:
+            return point
+        else:
+            YAxis = rs.VectorUnitize(rs.VectorUnitize(plane.YAxis))
+            ratio = 0.18
+            if random == 8:
+                # first direction is chosen
+                point = point + YAxis * self.stepsize/5.
+                return self.mesh.ClosestPoint(point)
+            if random == 9:
+                # first direction is chosen
+                point = point - YAxis * self.stepsize/5.
+                return self.mesh.ClosestPoint(point)
+                
+    def getDirtCoef(self):
+        vectDown = rs.VectorCreate(self.points[-1], self.points[-2])
+        if vectDown.Length == 0.:   print self.count
+        alpha = math.acos(-rs.VectorUnitize(vectDown).Z) * 180/math.pi
+        norm = rs.VectorUnitize(self.mesh.NormalAt(self.mpos))
+        if alpha <= 90 and norm.Z > 0:
+            coef = 1-(1-(alpha/90)**2)**.5
+            return coef
+        if alpha <= 90 and norm.Z <= 0.:
+            return 0
+        if alpha > 90:
+            return 1
 
 
 
 def randomPoint():
     N = len(startPoints)-1
-    index = random.randint(0, N)
+    index = r.randint(0, N)
     return startPoints[index]
 
 def initialization(nbDrops):
@@ -141,43 +261,82 @@ def initialization(nbDrops):
         pt = randomPoint()
         new.append(pt)
     return new
+    
+def nextDisplay(display, drop):
+    if drop.state == 'on':
+        display.append(g.PolylineCurve(drop.curveTemp))
 
 # Creation of the drop list
 if 'dropList' not in st:
-    st['dropList'] = []
-#    st['waterPath'] = []
+    st['dropList'] = ObjectDropList()
+    st['waterPath'] = []
     
 dropList = st['dropList']   # drop list that is used to keep the drops between each steps
-#waterPath = st['waterPath'] # drop paths history
+finishedPath = st['waterPath'] # drop paths history
+
 
 display = []
-waterPath = []
+waterPath = []  # new list used every iteration to keep the datas
+edgePoints = []
+criticalPoints = []
+global display
+global waterPath
+global edgePoints
+global criticalPoints
+
+delDropList = []
+
+nbDrops = int(nbDrops)
+angleTol = mat[0]   # angle of change of direction tolerance 
+angleDrop = mat[1]  # angle for water drops
 
 # addition of the new drops to the list
-newPoints  = initialization(nbDrops)
-if len(dropList) < maxDrops:
-    for pt in newPoints:
-        dropList.append(RainDrop(pt, facadeMesh))
+def initialiseRainDrops(nbDrops, maxDrops, dropList):
+    newPoints  = initialization(nbDrops)
+    if dropList.length < maxDrops - nbDrops:
+        for pt in newPoints:
+            RainDrop(pt, facadeMesh, dropList)
+    return dropList
 
 # loop on the drops
-for drop in dropList:
-    if drop.state == 'on':
+def main(nbDrops, maxDrops, dropList):
+    dropList = initialiseRainDrops(nbDrops, maxDrops, dropList)
+    
+    print dropList.length
+    dropList.lengthUpdate()
+    print dropList.length
+    for i in range(dropList.length):
+        drop = dropList.drops[i]
+        
         drop.nextStep()
-        if drop.count > 5:
-            drop.accumulationCheck()
-            drop.anglesCheck()
-        display.append(drop.step)
-    if drop.state == 'off':
-        drop.nextSurf()
-    if drop.state == 'finished':
-        #waterPath.append(drop.waterPath)
-        dropList.pop(drop)
-        del drop
-    waterPath.append(g.PolylineCurve(drop.curveTemp))
+        
+        drop.checkStep()
+        
+        drop.updateData()
+        
+        nextDisplay(display, drop)
+        
+        waterPath.append(g.PolylineCurve(drop.curveTemp))
+        
+        if drop.state == 'finished':
+            finishedPath.append(drop.waterPath)
+            delDropList.append(drop.indexList)
+    
+    if delDropList != None:
+        delDropList.sort()
+        delDropList.reverse()
+        for ind in delDropList:
+            dropList.delDrop(ind)
+    
+    return dropList, finishedPath
 
+
+if bool == True:
+    dropList, finishedPath = main(nbDrops, maxDrops, dropList)
 
 st['dropList'] = dropList
-#st['waterPath'] = waterPath
+st['waterPath'] = finishedPath
 
 if bool == False:
     del st['dropList']
+    del st['waterPath']
