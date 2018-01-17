@@ -9,26 +9,8 @@ from scriptcontext import sticky as st
 import random as r
 
 
-# OBJECT
-class ObjectDropList(object):
-    def __init__(self):
-        self.drops = []
-        self.length = 0
-        
-    def addDrop(self, drop):
-        self.drops.append(drop)
-        self.length += 1
-        return self.length - 1
-        
-    def delDrop(self, ind):
-        del self.drops[ind]
-        self.length -= 1
-        for i in range(ind, self.length):
-            self.drops[i].indexList -= 1
-
-
 class RainDrop(object):
-    def __init__(self, point3d, facadeMesh, dropList):
+    def __init__(self, point3d, facadeMesh):
         self.pos = point3d   # position of the flow
         self.mesh = facadeMesh  # surface mesh of the facade
         self.edges = [facadeMesh.TopologyEdges.EdgeLine(i) for i in range(facadeMesh.TopologyEdges.Count)]
@@ -40,7 +22,9 @@ class RainDrop(object):
         self.count = 0  # step advancement
         self.check = False  # True if the flow has to be checked, false otherwise
         
-        self.indexList = dropList.addDrop(self)
+        self.speed = 4  # we will consider thqt it is the same as the weight for now
+        
+        self.indexList = len(dropList)
         
         # data collection
         self.step = 0.
@@ -51,10 +35,40 @@ class RainDrop(object):
         self.dirtCoef = 0
         self.dirtTemp = []
         self.dirtPath = []
+        
+        dropList.append(self)
 
+    def __del__(self):
+        finishedPath.append(self.waterPath)
+        ind = self.indexList
+        dropList.remove(drop)
+        for i in range(ind, len(dropList)):
+            self.drops[i].indexList -= 1
+        
+    def __add__(self, drop):
+        self.speed += drop.speed
+        del drop
 
 
     ### MOVEMENT AREA ###
+    
+    def move(self):
+        count = self.speed
+        
+        while count > 0:
+            self.nextStep()
+            
+            self.checkStep()
+            
+            self.updateData()
+            
+            nextDisplay(display, self)
+            
+            if self.state == 'finished':
+                del self
+                break
+                
+            count -= 1
 
     def nextStep(self):
         if self.state == 'on':  # if the waterflow is on the facade
@@ -265,20 +279,24 @@ def initialization(nbDrops):
 def nextDisplay(display, drop):
     if drop.state == 'on':
         display.append(g.PolylineCurve(drop.curveTemp))
+    waterPath.append(g.PolylineCurve(drop.curveTemp))
 
 # Creation of the drop list
 if 'dropList' not in st:
-    st['dropList'] = ObjectDropList()
+    st['dropList'] = []
     st['waterPath'] = []
     
 dropList = st['dropList']   # drop list that is used to keep the drops between each steps
 finishedPath = st['waterPath'] # drop paths history
 
+global dropList
+global finishedPath
 
 display = []
 waterPath = []  # new list used every iteration to keep the datas
 edgePoints = []
 criticalPoints = []
+
 global display
 global waterPath
 global edgePoints
@@ -291,48 +309,32 @@ angleTol = mat[0]   # angle of change of direction tolerance
 angleDrop = mat[1]  # angle for water drops
 
 # addition of the new drops to the list
-def initialiseRainDrops(nbDrops, maxDrops, dropList):
+def initialiseRainDrops(nbDrops, maxDrops):
     newPoints  = initialization(nbDrops)
-    if dropList.length < maxDrops - nbDrops:
+    if len(dropList) < maxDrops - nbDrops:
         for pt in newPoints:
-            RainDrop(pt, facadeMesh, dropList)
-    return dropList
+            RainDrop(pt, facadeMesh)
 
 # loop on the drops
-def main(nbDrops, maxDrops, dropList):
-    dropList = initialiseRainDrops(nbDrops, maxDrops, dropList)
+def main(nbDrops, maxDrops):
     
-    for i in range(dropList.length):
-        drop = dropList.drops[i]
-        
-        drop.nextStep()
-        
-        drop.checkStep()
-        
-        drop.updateData()
-        
-        nextDisplay(display, drop)
-        
-        waterPath.append(g.PolylineCurve(drop.curveTemp))
-        
-        if drop.state == 'finished':
-            finishedPath.append(drop.waterPath)
-            delDropList.append(drop.indexList)
+    initialiseRainDrops(nbDrops, maxDrops)
     
-    if delDropList != None:
-        delDropList.sort()
-        delDropList.reverse()
-        for ind in delDropList:
-            dropList.delDrop(ind)
-    
-    return dropList, finishedPath
+    for drop in dropList:
+        
+        drop.move()
 
+
+out = len(dropList)
 
 if bool == True:
-    dropList, finishedPath = main(nbDrops, maxDrops, dropList)
+    main(nbDrops, maxDrops)
 
 st['dropList'] = dropList
 st['waterPath'] = finishedPath
+
+del dropList
+del waterPath
 
 if bool == False:
     del st['dropList']
