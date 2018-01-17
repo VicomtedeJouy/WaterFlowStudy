@@ -13,20 +13,18 @@ import random as r
 class ObjectDropList(object):
     def __init__(self):
         self.drops = []
-        self.length = len(self.drops)
+        self.length = 0
         
     def addDrop(self, drop):
         self.drops.append(drop)
+        self.length += 1
         return self.length - 1
         
     def delDrop(self, ind):
         del self.drops[ind]
+        self.length -= 1
         for i in range(ind, self.length):
             self.drops[i].indexList -= 1
-        self.lengthUpdate()
-            
-    def lengthUpdate(self):
-        self.length = len(self.drops)
 
 
 class RainDrop(object):
@@ -41,6 +39,7 @@ class RainDrop(object):
         self.maxsteps = maxSteps    # max numbers of iterations
         self.count = 0  # step advancement
         self.check = False  # True if the flow has to be checked, false otherwise
+        
         self.indexList = dropList.addDrop(self)
         
         # data collection
@@ -52,6 +51,7 @@ class RainDrop(object):
         self.dirtCoef = 0
         self.dirtTemp = []
         self.dirtPath = []
+
 
 
     ### MOVEMENT AREA ###
@@ -302,9 +302,6 @@ def initialiseRainDrops(nbDrops, maxDrops, dropList):
 def main(nbDrops, maxDrops, dropList):
     dropList = initialiseRainDrops(nbDrops, maxDrops, dropList)
     
-    print dropList.length
-    dropList.lengthUpdate()
-    print dropList.length
     for i in range(dropList.length):
         drop = dropList.drops[i]
         
