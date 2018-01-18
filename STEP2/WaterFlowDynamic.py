@@ -39,9 +39,9 @@ class RainDrop(object):
         dropList.append(self)
 
     def __del__(self):
-        finishedPath.append(self.waterPath)
+        #finishedPath.append(self.waterPath)
         ind = self.indexList
-        dropList.remove(drop)
+        dropList.pop(ind)
         for i in range(ind, len(dropList)):
             self.drops[i].indexList -= 1
         
@@ -324,11 +324,13 @@ def main(nbDrops, maxDrops):
         
         drop.move()
 
-
-out = len(dropList)
+out = []
+out.append(len(dropList))
 
 if bool == True:
     main(nbDrops, maxDrops)
+    
+out.append(len(dropList))
 
 st['dropList'] = dropList
 st['waterPath'] = finishedPath
