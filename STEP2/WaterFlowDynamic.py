@@ -41,10 +41,16 @@ class RainDrop(object):
 
     def __del__(self):
 <<<<<<< HEAD
+<<<<<<< HEAD
         print "removed"
         finishedPath.append(self.waterPath)
         ind = self.indexList
         del dropList[ind]
+=======
+        #finishedPath.append(self.waterPath)
+        ind = self.indexList
+        dropList.pop(ind)
+>>>>>>> f7ac0f9111411433b49f90e517f021412cd931f8
 =======
         #finishedPath.append(self.waterPath)
         ind = self.indexList
@@ -334,9 +340,14 @@ def main(nbDrops, maxDrops):
         drop.move
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 out = len(dropList)
 print len(dropList)
+=======
+out = []
+out.append(len(dropList))
+>>>>>>> f7ac0f9111411433b49f90e517f021412cd931f8
 =======
 out = []
 out.append(len(dropList))
