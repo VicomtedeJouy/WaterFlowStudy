@@ -10,6 +10,7 @@ import random as r
 
 
 class RainDrop(object):
+    
     def __init__(self, point3d, facadeMesh):
         self.pos = point3d   # position of the flow
         self.mesh = facadeMesh  # surface mesh of the facade
@@ -39,12 +40,19 @@ class RainDrop(object):
         dropList.append(self)
 
     def __del__(self):
+<<<<<<< HEAD
+        print "removed"
         finishedPath.append(self.waterPath)
         ind = self.indexList
-        dropList.remove(drop)
+        del dropList[ind]
+=======
+        #finishedPath.append(self.waterPath)
+        ind = self.indexList
+        dropList.pop(ind)
+>>>>>>> f7ac0f9111411433b49f90e517f021412cd931f8
         for i in range(ind, len(dropList)):
-            self.drops[i].indexList -= 1
-        
+            dropList[i].indexList -= 1
+    
     def __add__(self, drop):
         self.speed += drop.speed
         del drop
@@ -52,6 +60,7 @@ class RainDrop(object):
 
     ### MOVEMENT AREA ###
     
+    @property
     def move(self):
         count = self.speed
         
@@ -65,7 +74,7 @@ class RainDrop(object):
             nextDisplay(display, self)
             
             if self.state == 'finished':
-                del self
+                self.__del__()
                 break
                 
             count -= 1
@@ -197,7 +206,7 @@ class RainDrop(object):
     
     ### DATA STORAGE ###
     
-    def updateData(self, *point):
+    def updateData(self, point=None):
         self.count += 1
         # update the lists of data that are recorded during the resolution
         if self.state == 'on':
@@ -208,7 +217,7 @@ class RainDrop(object):
             
         if self.state == 'landing':
             # creates new lists to collect data
-            self.curveTemp = [point[0]]
+            self.curveTemp = [point]
             self.dirtTemp = []
             
         if self.state == 'finished' or self.state == 'off':
@@ -322,13 +331,21 @@ def main(nbDrops, maxDrops):
     
     for drop in dropList:
         
-        drop.move()
+        drop.move
 
+<<<<<<< HEAD
 
 out = len(dropList)
+print len(dropList)
+=======
+out = []
+out.append(len(dropList))
+>>>>>>> f7ac0f9111411433b49f90e517f021412cd931f8
 
 if bool == True:
     main(nbDrops, maxDrops)
+    
+out.append(len(dropList))
 
 st['dropList'] = dropList
 st['waterPath'] = finishedPath
